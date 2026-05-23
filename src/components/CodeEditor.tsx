@@ -4,6 +4,11 @@ import { useEditorStore } from '../store/editorStore';
 import { VscFileCode, VscSymbolColor, VscFile } from 'react-icons/vsc';
 import { FiImage } from 'react-icons/fi';
 import { registerSnippets } from '@/utils/monacoSnippets';
+import { emmetHTML, emmetCSS, emmetJSX } from 'emmet-monaco-es';
+import { registerHtmlProviders } from '@/utils/htmlLangProvider';
+import { registerCssProviders } from '@/utils/cssLangProvider';
+
+let emmetRegistered = false;
 
 /* ─────────────────────────────────────────────────────────────
    Language maps
@@ -308,6 +313,14 @@ const CodeEditor: React.FC = () => {
   const handleBeforeMount: BeforeMount = (monaco) => {
     registerProvider(monaco);
     registerSnippets(monaco);
+    registerHtmlProviders(monaco);
+    registerCssProviders(monaco);
+    if (!emmetRegistered) {
+      emmetRegistered = true;
+      emmetHTML(monaco, ['html']);
+      emmetCSS(monaco, ['css', 'scss', 'less']);
+      emmetJSX(monaco, ['javascript', 'typescript', 'javascriptreact', 'typescriptreact']);
+    }
   };
 
   const handleEditorMount: OnMount = (editor, monaco) => {
@@ -315,6 +328,16 @@ const CodeEditor: React.FC = () => {
     const cleanupIdle  = setupIdleDetection(editor);
     const cleanupClose = enableHtmlAutoClose(editor, monaco);
     editor.onDidDispose(() => { cleanupIdle(); cleanupClose.dispose(); });
+
+    editor.addAction({
+      id: 'select-all',
+      label: 'Select All',
+      contextMenuGroupId: '9_cutcopypaste',
+      contextMenuOrder: 3,
+      run(ed) {
+        ed.trigger('keyboard', 'editor.action.selectAll', null);
+      },
+    });
   };
 
   const handleEditorChange = (value: string | undefined) => {

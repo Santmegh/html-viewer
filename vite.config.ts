@@ -87,8 +87,15 @@ export default defineConfig(async () => {
       },
     },
     optimizeDeps: {
-      include: ["react", "react-dom", "zustand", "framer-motion"],
-      exclude: ["@monaco-editor/react"],
+      include: [
+        "react", "react-dom", "zustand", "framer-motion",
+        "vscode-html-languageservice",
+        "vscode-css-languageservice",
+        "vscode-languageserver-textdocument",
+        "emmet-monaco-es",
+        "console-feed",
+      ],
+      exclude: ["@monaco-editor/react", "monaco-languageclient"],
     },
     ssr: {
       noExternal: ['@monaco-editor/react'],

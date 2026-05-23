@@ -1,0 +1,213 @@
+/* Golden Layout base styles */
+@import 'golden-layout/dist/css/goldenlayout-base.css';
+
+/* ── Custom dark theme matching the editor's color scheme ── */
+
+.lm_goldenlayout {
+  background: #161616;
+}
+
+.lm_content {
+  background: #1e1e1e;
+  border: none;
+}
+
+.lm_dragProxy .lm_content {
+  box-shadow: 4px 4px 20px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(100, 160, 255, 0.5);
+}
+
+/* Drop target */
+.lm_dropTargetIndicator {
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+  outline: 2px dashed rgba(100, 160, 255, 0.5);
+  border-radius: 4px;
+}
+.lm_dropTargetIndicator .lm_inner {
+  background: rgba(100, 160, 255, 0.1);
+  opacity: 1;
+}
+
+/* Splitter (resize handles) */
+.lm_splitter {
+  background: #2d2d2d;
+  opacity: 1;
+  transition: background 0.15s;
+}
+.lm_splitter:hover,
+.lm_splitter.lm_dragging {
+  background: rgba(100, 160, 255, 0.5);
+  opacity: 1;
+}
+
+/* Header / tab bar */
+.lm_header {
+  height: 28px;
+  background: #252526;
+  border-bottom: 1px solid #2d2d2d;
+  user-select: none;
+}
+
+.lm_header .lm_tab {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  background: #2a2a2b;
+  border: none;
+  border-right: 1px solid #1e1e1e;
+  margin-right: 0;
+  padding: 0 28px 0 10px;
+  height: 28px;
+  line-height: 28px;
+  box-shadow: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.lm_header .lm_tab:hover {
+  background: #2f2f30;
+  color: #bbb;
+}
+
+.lm_header .lm_tab.lm_active {
+  background: #1e1e1e;
+  color: #ccc;
+  border-bottom: 2px solid #e5a45a;
+  box-shadow: none;
+  padding-bottom: 0;
+}
+
+.lm_header .lm_tab.lm_active.lm_focused {
+  background: #1e1e1e;
+  color: #e5a45a;
+  border-bottom: 2px solid #e5a45a;
+}
+
+/* Close button on tabs */
+.lm_header .lm_tab .lm_close_tab {
+  width: 14px;
+  height: 14px;
+  background-image: none;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  margin: auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  border-radius: 3px;
+}
+.lm_header .lm_tab:hover .lm_close_tab,
+.lm_header .lm_tab.lm_active .lm_close_tab {
+  opacity: 0.5;
+}
+.lm_header .lm_tab .lm_close_tab:hover {
+  opacity: 1;
+  background: rgba(244, 113, 113, 0.2);
+}
+
+/* Override the close icon with CSS × character */
+.lm_header .lm_tab .lm_close_tab::before {
+  content: '×';
+  font-size: 14px;
+  color: #aaa;
+  line-height: 1;
+  font-family: 'Inter', sans-serif;
+}
+.lm_header .lm_tab .lm_close_tab:hover::before {
+  color: #f47171;
+}
+
+/* Header controls (maximize, etc.) */
+.lm_header .lm_controls {
+  right: 4px;
+  bottom: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+}
+
+.lm_header .lm_controls .lm_maximise,
+.lm_header .lm_controls .lm_close,
+.lm_header .lm_controls .lm_popout {
+  width: 20px;
+  height: 20px;
+  background-image: none;
+  opacity: 0.4;
+  transition: opacity 0.12s;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 1px;
+}
+.lm_header .lm_controls .lm_maximise:hover,
+.lm_header .lm_controls .lm_close:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.1);
+}
+
+.lm_header .lm_controls .lm_maximise::before {
+  content: '⤢';
+  font-size: 12px;
+  color: #aaa;
+}
+.lm_maximised .lm_header .lm_controls .lm_maximise::before {
+  content: '⤡';
+}
+.lm_header .lm_controls .lm_close::before {
+  content: '×';
+  font-size: 15px;
+  color: #aaa;
+}
+
+/* Stack (panel container) */
+.lm_stack {
+  background: #1e1e1e;
+}
+.lm_stack.lm_focused > .lm_header {
+  background: #252526;
+}
+.lm_stack.lm_focused > .lm_header .lm_tab.lm_active {
+  color: #e5a45a;
+}
+
+/* Drag ghost */
+.lm_dragProxy {
+  opacity: 0.85;
+}
+.lm_dragProxy .lm_header {
+  background: #252526;
+}
+.lm_dragProxy .lm_header .lm_tab.lm_active {
+  background: #1e1e1e;
+  color: #e5a45a;
+  border-bottom: 2px solid #e5a45a;
+}
+
+/* Maximise overlay */
+.lm_maximised {
+  border: none;
+  box-shadow: 0 0 0 1px rgba(229, 164, 90, 0.3);
+}
+
+/* Transition overlays */
+.lm_transition_indicator {
+  background-color: rgba(100, 160, 255, 0.2);
+  border: 2px solid rgba(100, 160, 255, 0.5);
+  border-radius: 4px;
+}
+
+/* Splitter vertical drag handle */
+.lm_splitter.lm_vertical .lm_drag_handle {
+  height: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.lm_splitter.lm_horizontal .lm_drag_handle {
+  width: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}

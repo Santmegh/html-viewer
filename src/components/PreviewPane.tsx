@@ -4,14 +4,12 @@ import {
   FiRefreshCw, FiMonitor, FiTablet, FiSmartphone,
   FiArrowLeft, FiArrowRight, FiPlus, FiX, FiImage, FiChevronDown, FiExternalLink,
 } from 'react-icons/fi';
-import { VscDebugConsole, VscFileCode } from 'react-icons/vsc';
-
-type DevToolsTab = 'console' | 'elements' | 'network' | 'styles';
+import { VscFileCode, VscDebugAlt } from 'react-icons/vsc';
 
 const PreviewPane: React.FC = () => {
   const {
     files, previewRefreshKey, panels, setPanels,
-    consoleEntries, addConsoleEntry, clearConsole,
+    addConsoleEntry,
     previewTabs, activePreviewTabId, addPreviewTab, closePreviewTab,
     setActivePreviewTab, updatePreviewTab,
     timelineAnimationStyle,
@@ -20,11 +18,9 @@ const PreviewPane: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [srcDoc, setSrcDoc] = useState<string>('');
   const rebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [devtoolsTab, setDevtoolsTab] = useState<DevToolsTab>('console');
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [loading, setLoading] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
-  const [elementsHtml, setElementsHtml] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const [currentUrl, setCurrentUrl] = useState('preview://localhost/');
@@ -35,6 +31,10 @@ const PreviewPane: React.FC = () => {
   const [newTabMenuOpen, setNewTabMenuOpen] = useState(false);
   const newTabBtnRef = useRef<HTMLButtonElement>(null);
   const newTabMenuRef = useRef<HTMLDivElement>(null);
+  const [erudaOpen, setErudaOpen] = useState(false);
+  const [viewportMenuOpen, setViewportMenuOpen] = useState(false);
+  const viewportBtnRef = useRef<HTMLButtonElement>(null);
+  const viewportMenuRef = useRef<HTMLDivElement>(null);
 
   const activeTab = previewTabs.find(t => t.id === activePreviewTabId);
 
@@ -52,6 +52,21 @@ const PreviewPane: React.FC = () => {
     window.addEventListener('mousedown', handler);
     return () => window.removeEventListener('mousedown', handler);
   }, [newTabMenuOpen]);
+
+  // Close viewport menu when clicking outside
+  useEffect(() => {
+    if (!viewportMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        viewportBtnRef.current && !viewportBtnRef.current.contains(e.target as Node) &&
+        viewportMenuRef.current && !viewportMenuRef.current.contains(e.target as Node)
+      ) {
+        setViewportMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [viewportMenuOpen]);
 
   const openFileInTab = useCallback((fileId: string) => {
     setNewTabMenuOpen(false);
@@ -119,6 +134,30 @@ const PreviewPane: React.FC = () => {
       }
     }
 
+    const erudaScript = `<script src="https://cdn.jsdelivr.net/npm/eruda@3/eruda.min.js"><\/script><script>
+(function() {
+  try {
+    eruda.init({
+      tool: ['console','elements','network','resources','info'],
+      useShadowDom: true,
+      autoScale: true,
+      defaults: { displaySize: 50, transparency: 0.95, theme: 'Dark' }
+    });
+    try { eruda._entryBtn._$el[0].style.display = 'none'; } catch(ex) {}
+    eruda.hide();
+    var _erudaVisible = false;
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.__htmlEditor && e.data.type === 'eruda-toggle') {
+        try {
+          _erudaVisible = !_erudaVisible;
+          _erudaVisible ? eruda.show() : eruda.hide();
+        } catch(ex) {}
+      }
+    });
+  } catch(ex) {}
+})();
+<\/script>`;
+
     const bridgeScript = `<script>
 (function() {
   const _types = ['log','error','warn','info','debug'];
@@ -168,9 +207,9 @@ const PreviewPane: React.FC = () => {
 <\/script>`;
 
     if (html.includes('<head>')) {
-      html = html.replace('<head>', '<head>' + bridgeScript);
+      html = html.replace('<head>', '<head>' + erudaScript + bridgeScript);
     } else {
-      html = bridgeScript + html;
+      html = erudaScript + bridgeScript + html;
     }
 
     return html;
@@ -250,27 +289,6 @@ const PreviewPane: React.FC = () => {
   const handleIframeLoad = () => {
     setLoading(false);
     requestAnimationFrame(() => setFadeIn(true));
-    try {
-      const doc = iframeRef.current?.contentDocument;
-      if (doc) setElementsHtml(formatHTML(doc.documentElement.outerHTML));
-    } catch {}
-  };
-
-  const formatHTML = (html: string) => {
-    let indent = 0;
-    return html
-      .replace(/></g, '>\n<')
-      .split('\n')
-      .map(line => {
-        const trimmed = line.trim();
-        if (!trimmed) return '';
-        if (trimmed.startsWith('</')) indent = Math.max(0, indent - 1);
-        const out = '  '.repeat(indent) + trimmed;
-        if (!trimmed.startsWith('</') && !trimmed.endsWith('/>') && !trimmed.includes('</')) indent++;
-        return out;
-      })
-      .filter(Boolean)
-      .join('\n');
   };
 
   const viewportStyle = {
@@ -278,9 +296,6 @@ const PreviewPane: React.FC = () => {
     tablet: { width: '768px', height: '100%', boxShadow: '0 0 0 1px #444, 0 4px 24px rgba(0,0,0,0.4)' },
     mobile: { width: '390px', height: '844px', borderRadius: 24, boxShadow: '0 0 0 8px #222, 0 0 0 10px #333, 0 8px 32px rgba(0,0,0,0.6)' },
   }[viewport];
-
-  const errorCount = consoleEntries.filter(e => e.type === 'error').length;
-  const warnCount = consoleEntries.filter(e => e.type === 'warn').length;
 
   // Files available to open in preview
   const previewableFiles = files.filter(f => f.type === 'html' || f.type === 'image');
@@ -470,18 +485,55 @@ const PreviewPane: React.FC = () => {
                 readOnly
               />
             </div>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {(['desktop', 'tablet', 'mobile'] as const).map(v => (
-                <button
-                  key={v}
-                  className={`panel-icon-btn ${viewport === v ? 'active' : ''}`}
-                  title={v === 'desktop' ? 'Desktop' : v === 'tablet' ? 'Tablet (768px)' : 'Mobile (390px)'}
-                  onClick={() => setViewport(v)}
-                  style={{ color: viewport === v ? 'var(--editor-amber)' : undefined }}
+            <div style={{ position: 'relative' }}>
+              <button
+                ref={viewportBtnRef}
+                className="panel-icon-btn"
+                title={viewport === 'desktop' ? 'Desktop' : viewport === 'tablet' ? 'Tablet (768px)' : 'Mobile (390px)'}
+                onClick={() => setViewportMenuOpen(o => !o)}
+                style={{
+                  color: viewportMenuOpen ? 'var(--editor-amber)' : undefined,
+                  display: 'flex', alignItems: 'center', gap: 2,
+                }}
+              >
+                {viewport === 'desktop' ? <FiMonitor size={13} /> : viewport === 'tablet' ? <FiTablet size={13} /> : <FiSmartphone size={13} />}
+                <FiChevronDown size={9} style={{ opacity: 0.6 }} />
+              </button>
+              {viewportMenuOpen && (
+                <div
+                  ref={viewportMenuRef}
+                  style={{
+                    position: 'absolute', top: 30, right: 0,
+                    background: '#252526', border: '1px solid #3e3e3e',
+                    borderRadius: 6, zIndex: 9999, minWidth: 140,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
+                  }}
                 >
-                  {v === 'desktop' ? <FiMonitor size={13} /> : v === 'tablet' ? <FiTablet size={13} /> : <FiSmartphone size={13} />}
-                </button>
-              ))}
+                  {([
+                    { v: 'desktop', label: 'Desktop', sub: 'Full width', icon: <FiMonitor size={13} /> },
+                    { v: 'tablet', label: 'Tablet', sub: '768px', icon: <FiTablet size={13} /> },
+                    { v: 'mobile', label: 'Mobile', sub: '390px', icon: <FiSmartphone size={13} /> },
+                  ] as const).map(({ v, label, sub, icon }) => (
+                    <button
+                      key={v}
+                      onClick={() => { setViewport(v); setViewportMenuOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: '7px 12px',
+                        background: viewport === v ? 'rgba(229,164,90,0.1)' : 'none',
+                        border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => { if (viewport !== v) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                      onMouseLeave={e => { if (viewport !== v) (e.currentTarget as HTMLElement).style.background = 'none'; }}
+                    >
+                      <span style={{ color: viewport === v ? 'var(--editor-amber)' : '#888' }}>{icon}</span>
+                      <span style={{ fontSize: 12, color: viewport === v ? 'var(--editor-amber)' : '#ccc' }}>{label}</span>
+                      <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>{sub}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               className="panel-icon-btn" title="Open in Browser"
@@ -490,23 +542,20 @@ const PreviewPane: React.FC = () => {
               <FiExternalLink size={13} />
             </button>
             <button
-              className="panel-icon-btn" title="DevTools (F12)"
-              onClick={() => setPanels({ devtools: !panels.devtools })}
+              className="panel-icon-btn"
+              title={erudaOpen ? 'Hide DevTools' : 'Show DevTools'}
+              onClick={() => {
+                iframeRef.current?.contentWindow?.postMessage({ __htmlEditor: true, type: 'eruda-toggle' }, '*');
+                setErudaOpen(o => !o);
+              }}
               style={{
-                color: panels.devtools ? 'var(--editor-amber)' : errorCount > 0 ? '#f44747' : undefined,
-                position: 'relative',
+                color: erudaOpen ? 'var(--editor-amber)' : undefined,
+                background: erudaOpen ? 'rgba(229,164,90,0.1)' : 'transparent',
+                border: `1px solid ${erudaOpen ? 'rgba(229,164,90,0.3)' : 'transparent'}`,
+                borderRadius: 4, padding: '2px 4px',
               }}
             >
-              <VscDebugConsole size={15} />
-              {errorCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: -3, right: -3, width: 12, height: 12,
-                  background: '#f44747', borderRadius: '50%', fontSize: 8,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                }}>
-                  {errorCount > 9 ? '9+' : errorCount}
-                </span>
-              )}
+              <VscDebugAlt size={14} />
             </button>
           </div>
 
@@ -541,122 +590,6 @@ const PreviewPane: React.FC = () => {
             />
           </div>
 
-          {/* DevTools Panel */}
-          {panels.devtools && (
-            <div style={{
-              height: panels.devtoolsHeight, flexShrink: 0,
-              borderTop: '1px solid #3e3e3e', background: '#1a1a1a',
-              display: 'flex', flexDirection: 'column',
-              position: 'relative',
-            }}>
-              <div
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, cursor: 'row-resize', zIndex: 10 }}
-                onMouseDown={(e) => {
-                  const startY = e.clientY;
-                  const startH = panels.devtoolsHeight;
-                  const onMove = (ev: MouseEvent) => setPanels({ devtoolsHeight: Math.max(80, Math.min(600, startH + (startY - ev.clientY))) });
-                  const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                  window.addEventListener('mousemove', onMove);
-                  window.addEventListener('mouseup', onUp);
-                }}
-              />
-              <div style={{
-                display: 'flex', alignItems: 'center', height: 30, flexShrink: 0,
-                background: '#252526', borderBottom: '1px solid #3e3e3e',
-              }}>
-                {(['console', 'elements', 'styles', 'network'] as DevToolsTab[]).map(t => (
-                  <div
-                    key={t}
-                    onClick={() => setDevtoolsTab(t)}
-                    style={{
-                      padding: '0 14px', height: '100%', display: 'flex', alignItems: 'center',
-                      fontSize: 12, cursor: 'pointer',
-                      color: devtoolsTab === t ? '#ccc' : '#888',
-                      borderBottom: devtoolsTab === t ? '2px solid var(--editor-amber)' : '2px solid transparent',
-                      fontFamily: 'var(--app-font-sans)',
-                      userSelect: 'none',
-                    }}
-                  >
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                    {t === 'console' && errorCount > 0 && (
-                      <span style={{ marginLeft: 5, background: '#f44747', borderRadius: 3, fontSize: 10, padding: '0 4px', color: '#fff' }}>
-                        {errorCount}
-                      </span>
-                    )}
-                    {t === 'console' && warnCount > 0 && errorCount === 0 && (
-                      <span style={{ marginLeft: 5, background: '#dcdcaa', borderRadius: 3, fontSize: 10, padding: '0 4px', color: '#000' }}>
-                        {warnCount}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                <button
-                  onClick={clearConsole}
-                  style={{ marginLeft: 'auto', marginRight: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#888' }}
-                >
-                  🚫 Clear
-                </button>
-              </div>
-              <div style={{ flex: 1, overflow: 'auto', fontFamily: 'var(--app-font-mono)', fontSize: 12 }}>
-                {devtoolsTab === 'console' && (
-                  consoleEntries.length === 0 ? (
-                    <div style={{ padding: 12, color: '#555', fontSize: 12 }}>No console output. Your JavaScript console.log() calls will appear here.</div>
-                  ) : (
-                    consoleEntries.map(entry => (
-                      <div
-                        key={entry.id}
-                        style={{
-                          padding: '3px 10px', borderBottom: '1px solid rgba(255,255,255,0.03)',
-                          display: 'flex', gap: 8, alignItems: 'flex-start',
-                          background: entry.type === 'error' ? 'rgba(244,71,71,0.07)' : entry.type === 'warn' ? 'rgba(220,220,170,0.05)' : 'transparent',
-                        }}
-                      >
-                        <span style={{
-                          color: entry.type === 'error' ? '#f44747' : entry.type === 'warn' ? '#dcdcaa' : entry.type === 'info' ? '#9cdcfe' : '#888',
-                          flexShrink: 0, fontSize: 11,
-                        }}>
-                          {entry.type === 'error' ? '✕' : entry.type === 'warn' ? '⚠' : entry.type === 'info' ? 'ℹ' : '>'}
-                        </span>
-                        <pre style={{
-                          flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0,
-                          color: entry.type === 'error' ? '#f44747' : entry.type === 'warn' ? '#dcdcaa' : '#ccc',
-                          fontSize: 12,
-                        }}>
-                          {entry.message}
-                        </pre>
-                        <span style={{ color: '#555', fontSize: 10, flexShrink: 0, alignSelf: 'center' }}>
-                          {entry.timestamp.toLocaleTimeString()}
-                        </span>
-                      </div>
-                    ))
-                  )
-                )}
-                {devtoolsTab === 'elements' && (
-                  <pre style={{ padding: 8, fontSize: 11, color: '#9cdcfe', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-                    {elementsHtml || 'Elements will appear here after page loads.'}
-                  </pre>
-                )}
-                {devtoolsTab === 'styles' && (
-                  <div style={{ padding: 10, color: '#888', fontSize: 12 }}>
-                    Select an element in Visual mode to inspect its computed styles.
-                  </div>
-                )}
-                {devtoolsTab === 'network' && (
-                  <div style={{ padding: 10 }}>
-                    <div style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>Loaded resources:</div>
-                    {files.map(f => (
-                      <div key={f.id} style={{ padding: '3px 0', fontSize: 11, display: 'flex', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <span style={{ color: '#4ec9b0', width: 32, flexShrink: 0 }}>200</span>
-                        <span style={{ color: '#9cdcfe' }}>{f.type.toUpperCase()}</span>
-                        <span style={{ color: '#ccc' }}>{f.name}</span>
-                        <span style={{ color: '#555', marginLeft: 'auto' }}>{(f.content.length / 1024).toFixed(1)}kb</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
