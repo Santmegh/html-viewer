@@ -95,7 +95,7 @@ export interface EventBinding {
   target: string;
   event: string;
   customEvent?: string;
-  action: 'playAnimation' | 'toggleClass' | 'showHide' | 'setAttribute' | 'snippet';
+  action: 'playAnimation' | 'toggleClass' | 'showHide' | 'setAttribute' | 'snippet' | 'navigate' | 'dispatchEvent' | 'preventDefault' | 'stopPropagation';
   animationName?: string;
   animationDuration?: string;
   animationEasing?: string;
@@ -103,7 +103,12 @@ export interface EventBinding {
   attrName?: string;
   attrValue?: string;
   snippet?: string;
+  navigateUrl?: string;
+  dispatchEventName?: string;
   enabled: boolean;
+  optOnce?: boolean;
+  optPassive?: boolean;
+  optCapture?: boolean;
 }
 
 export interface TimelineState {

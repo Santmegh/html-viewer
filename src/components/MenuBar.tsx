@@ -26,9 +26,11 @@ interface MenuItem {
 const WIN_LABELS: Record<WinId, string> = {
   files: 'File Explorer', code: 'Code Editor', preview: 'Preview / Visual Editor',
   properties: 'Properties', timeline: 'Timeline', events: 'Event Listeners',
+  'anim-presets': 'Anim Presets', 'anim-config': 'Anim Config', 'anim-tracks': 'Anim Tracks',
 };
 const WIN_ICONS: Record<WinId, string> = {
   files: '📁', code: '</>', preview: '🖥', properties: '⚙', timeline: '⏱', events: '⚡',
+  'anim-presets': '✦', 'anim-config': '⊛', 'anim-tracks': '≋',
 };
 
 const MenuBar: React.FC<MenuBarProps> = ({
@@ -109,35 +111,33 @@ const MenuBar: React.FC<MenuBarProps> = ({
     // Layout presets section
     items.push({ label: 'LAYOUT PRESETS', disabled: true });
     items.push({
-      label: 'Code Layout', shortcut: 'Ctrl+1', checked: mode === 'code',
+      label: '⌨  Code Layout', shortcut: 'Ctrl+1', checked: mode === 'code',
       badge: mode === 'code' ? 'active' : undefined, badgeColor: '#e5a45a',
       action: () => { onApplyModePreset?.('code'); close(); },
     });
     items.push({
-      label: 'Visual Layout', shortcut: 'Ctrl+2', checked: mode === 'visual',
+      label: '◈  Visual Layout', shortcut: 'Ctrl+2', checked: mode === 'visual',
       badge: mode === 'visual' ? 'active' : undefined, badgeColor: '#e5a45a',
       action: () => { onApplyModePreset?.('visual'); close(); },
     });
     items.push({
-      label: 'Split Layout', shortcut: 'Ctrl+3', checked: mode === 'split',
+      label: '⊟  Split Layout', shortcut: 'Ctrl+3', checked: mode === 'split',
       badge: mode === 'split' ? 'active' : undefined, badgeColor: '#e5a45a',
       action: () => { onApplyModePreset?.('split'); close(); },
     });
     items.push({ separator: true, label: '' });
 
-    // Per-window entries
-    items.push({ label: 'WINDOWS', disabled: true });
+    // Per-panel entries — show/hide toggle
+    items.push({ label: 'PANELS', disabled: true });
     for (const w of wins) {
-      const stateLabel = !w.visible ? 'hidden' : w.docked ? 'docked' : w.minimized ? 'minimized' : 'floating';
-      const badgeColor = !w.visible ? '#555' : w.docked ? '#7ab8f5' : '#e5a45a';
       items.push({
         label: `${WIN_ICONS[w.id]}  ${WIN_LABELS[w.id]}`,
-        checked: w.visible && !w.minimized,
-        badge: stateLabel,
-        badgeColor,
+        checked: w.visible,
+        badge: w.visible ? 'open' : 'closed',
+        badgeColor: w.visible ? '#7ab8f5' : '#555',
         action: () => {
           if (!w.visible) {
-            onOpenWin?.(w.id, w.docked);
+            onOpenWin?.(w.id);
           } else {
             onToggleWin?.(w.id);
           }
@@ -145,30 +145,9 @@ const MenuBar: React.FC<MenuBarProps> = ({
         },
       });
     }
-    items.push({ separator: true, label: '' });
-
-    // Open specific windows in docked/floating mode
-    items.push({ label: 'OPEN IN DOCKED SLOT', disabled: true });
-    for (const w of wins) {
-      if (!w.visible || !w.docked) {
-        items.push({
-          label: `Dock: ${WIN_LABELS[w.id]}`,
-          action: () => { onOpenWin?.(w.id, true); close(); },
-        });
-      }
-    }
-    items.push({ label: 'OPEN AS FLOATING', disabled: true });
-    for (const w of wins) {
-      if (!w.visible || w.docked) {
-        items.push({
-          label: `Float: ${WIN_LABELS[w.id]}`,
-          action: () => { onOpenWin?.(w.id, false); close(); },
-        });
-      }
-    }
 
     items.push({ separator: true, label: '' });
-    items.push({ label: '↺ Reset Layout to Defaults', action: () => { onResetLayout?.(); close(); } });
+    items.push({ label: '↺  Reset Layout to Defaults', shortcut: 'Ctrl+0', action: () => { onResetLayout?.(); close(); } });
     return items;
   };
 

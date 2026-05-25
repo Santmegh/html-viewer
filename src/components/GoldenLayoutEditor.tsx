@@ -11,17 +11,20 @@ import PreviewPane from './PreviewPane';
 import VisualEditor from './VisualEditor';
 import PropertiesPanel from './PropertiesPanel';
 import TimelinePanel from './TimelinePanel';
-import AnimationConfigPanel from './AnimationConfigPanel';
+import AnimPresetsPanel from './AnimPresetsPanel';
+import AnimConfigSubPanel from './AnimConfigSubPanel';
+import AnimTracksSubPanel from './AnimTracksSubPanel';
 import ConsolePanel from './ConsolePanel';
 import EventListenersPanel from './EventListenersPanel';
 
-export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console';
+export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks';
 export type Mode = 'code' | 'split' | 'visual';
 
 export interface GoldenLayoutEditorHandle {
   addPanel: (type: PanelType) => void;
   focusOrAddPanel: (type: PanelType) => void;
   resetLayout: () => void;
+  getOpenPanels: () => PanelType[];
 }
 
 /* ─── Layout Presets ─── */
@@ -74,9 +77,16 @@ function getVisualLayout(): LayoutConfig {
     root: {
       type: 'row',
       content: [
-        { type: 'component', componentType: 'files', title: '✦ Animations', width: 17 },
         {
-          type: 'column', width: 57,
+          type: 'stack', width: 18,
+          content: [
+            { type: 'component', componentType: 'anim-presets', title: '✦ Anim Presets' },
+            { type: 'component', componentType: 'anim-config', title: '⊛ Anim Config' },
+            { type: 'component', componentType: 'anim-tracks', title: '≋ Anim Tracks' },
+          ],
+        },
+        {
+          type: 'column', width: 56,
           content: [
             { type: 'component', componentType: 'preview', title: '◈ Visual Editor', height: 75 },
             { type: 'component', componentType: 'timeline', title: '◷ Timeline', height: 25 },
@@ -106,13 +116,14 @@ const PANEL_TITLES: Record<PanelType, string> = {
   files: '⬡ Explorer', code: '⌨ Code Editor', preview: '◉ Preview',
   properties: '⊞ Properties', timeline: '◷ Timeline',
   events: '⚡ Events', console: '▶ Console',
+  'anim-presets': '✦ Anim Presets', 'anim-config': '⊛ Anim Config', 'anim-tracks': '≋ Anim Tracks',
 };
 
 /* ─── Panel Renderer ─── */
 function renderPanelContent(type: PanelType, mode: Mode): React.ReactElement {
   switch (type) {
     case 'files':
-      return mode === 'visual' ? <AnimationConfigPanel /> : <FilePanel hideHeader />;
+      return <FilePanel hideHeader />;
     case 'code':
       return <CodeEditor />;
     case 'preview':
@@ -125,21 +136,47 @@ function renderPanelContent(type: PanelType, mode: Mode): React.ReactElement {
       return <EventListenersPanel />;
     case 'console':
       return <ConsolePanel />;
+    case 'anim-presets':
+      return <AnimPresetsPanel />;
+    case 'anim-config':
+      return <AnimConfigSubPanel />;
+    case 'anim-tracks':
+      return <AnimTracksSubPanel />;
   }
 }
 
 /* ─── Main Component ─── */
 interface GoldenLayoutEditorProps {
   mode: Mode;
+  onPanelsChange?: (openPanels: PanelType[]) => void;
 }
 
 const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEditorProps>(
-  ({ mode }, ref) => {
+  ({ mode, onPanelsChange }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const glRef = useRef<GoldenLayout | null>(null);
     const rootsRef = useRef<Map<ComponentContainer, ReactDOMClient.Root>>(new Map());
     const modeRef = useRef<Mode>(mode);
     const [resetKey, setResetKey] = useState(0);
+    const onPanelsChangeRef = useRef(onPanelsChange);
+    useEffect(() => { onPanelsChangeRef.current = onPanelsChange; }, [onPanelsChange]);
+
+    const getOpenPanelTypes = useCallback((): PanelType[] => {
+      const gl = glRef.current as any;
+      if (!gl) return [];
+      const found: PanelType[] = [];
+      try {
+        gl.getAllContentItems?.().forEach((item: any) => {
+          const ct = item._myType as PanelType | undefined;
+          if (ct && !found.includes(ct)) found.push(ct);
+        });
+      } catch {}
+      return found;
+    }, []);
+
+    const notifyPanelsChange = useCallback(() => {
+      onPanelsChangeRef.current?.(getOpenPanelTypes());
+    }, [getOpenPanelTypes]);
 
     useEffect(() => { modeRef.current = mode; }, [mode]);
 
@@ -184,7 +221,7 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       const gl = new GoldenLayout(containerRef.current);
       glRef.current = gl;
 
-      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console'];
+      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console', 'anim-presets', 'anim-config', 'anim-tracks'];
       TYPES.forEach(type => {
         gl.registerComponentFactoryFunction(type, (container) => {
           (container as any)._myType = type;
@@ -198,6 +235,15 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
         console.warn('GL loadLayout failed:', e);
         gl.loadLayout(getSplitLayout());
       }
+
+      /* Notify after layout loads */
+      setTimeout(() => notifyPanelsChange(), 100);
+
+      /* Listen for panel add/remove to keep menu in sync */
+      try {
+        (gl as any).on?.('itemDestroyed', () => { setTimeout(notifyPanelsChange, 50); });
+        (gl as any).on?.('itemCreated', () => { setTimeout(notifyPanelsChange, 50); });
+      } catch {}
 
       /* ── ResizeObserver: keeps GL in sync with container size (fixes fullscreen glitch) ── */
       const ro = new ResizeObserver(() => {
@@ -267,6 +313,10 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
         } catch (e) {
           console.warn('focusOrAddPanel failed:', e);
         }
+        setTimeout(notifyPanelsChange, 100);
+      },
+      getOpenPanels() {
+        return getOpenPanelTypes();
       },
     }));
 

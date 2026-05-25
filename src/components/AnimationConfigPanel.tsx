@@ -3,7 +3,7 @@ import { useEditorStore } from '../store/editorStore';
 import { ANIMATION_PRESETS, ANIMATION_CATEGORIES, KEYFRAMES_MAP, PRESET_BY_NAME } from '../lib/animations';
 import { FiZap, FiPlay, FiSliders, FiList, FiX, FiCheck } from 'react-icons/fi';
 
-type Tab = 'presets' | 'config' | 'tracks';
+export type Tab = 'presets' | 'config' | 'tracks';
 
 const C = {
   bg: '#161618',
@@ -146,7 +146,7 @@ function injectPropertiesAnimationCssIntoHtml(html: string, css: string) {
 
 const COLORS = ['#e5a45a', '#4ec9b0', '#9cdcfe', '#dcdcaa', '#c586c0', '#f44747', '#89d185'];
 
-const AnimationConfigPanel: React.FC = () => {
+const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
   const {
     selectedElement, selectedSelector, animationConfig, setAnimationConfig,
     files, updateFileContent, setTimelineState, timelineState, showNotification,
@@ -178,7 +178,7 @@ const AnimationConfigPanel: React.FC = () => {
     }
   }, [selectedElement, selectedSelector, animationConfig.trigger, setTimelineState, files, updateFileContent]);
 
-  const [tab, setTab] = useState<Tab>('presets');
+  const [tab, setTab] = useState<Tab>(singleTab || 'presets');
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [presetSearch, setPresetSearch] = useState('');
   const [applied, setApplied] = useState(false);
@@ -254,11 +254,12 @@ const AnimationConfigPanel: React.FC = () => {
   const tracks = timelineState.tracks;
   const customAnimations = timelineState.customAnimations || [];
 
-  const filteredPresets = (activeCategory === 'All'
-    ? ANIMATION_PRESETS
-    : ANIMATION_PRESETS.filter(p => p.category === activeCategory))
-    .filter(p => !presetSearch.trim()
-      || p.name.toLowerCase().includes(presetSearch.toLowerCase()));
+  const customAsPresets = customAnimations.map(c => ({ name: c.name, category: '★ Custom', description: 'User-created animation', defaultDuration: 0.6, defaultEasing: 'ease', defaultIteration: '1' }));
+
+  const filteredPresets = [
+    ...(activeCategory === 'All' || activeCategory === '★ Custom' ? customAsPresets : []),
+    ...(activeCategory === 'All' || activeCategory !== '★ Custom' ? (activeCategory === 'All' ? ANIMATION_PRESETS : ANIMATION_PRESETS.filter(p => p.category === activeCategory)) : []),
+  ].filter(p => !presetSearch.trim() || p.name.toLowerCase().includes(presetSearch.toLowerCase()));
 
   const applyAnimation = useCallback(() => {
     if (!selectedElement || !selectedSelector) {
@@ -326,18 +327,20 @@ const AnimationConfigPanel: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
-      {/* Tabs */}
-      <div style={{ flexShrink: 0, display: 'flex', background: C.surface, borderBottom: `1px solid ${C.border}` }}>
-        {([['presets', FiZap, 'Presets'], ['config', FiSliders, 'Config'], ['tracks', FiList, 'Tracks']] as const).map(([id, Icon, label]) => (
-          <button key={id} onClick={() => setTab(id)}
-            style={{ flex: 1, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, fontWeight: tab === id ? 700 : 500,
-              background: tab === id ? C.accentBg : 'transparent',
-              borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`,
-              color: tab === id ? C.accent : C.muted, transition: 'all 0.12s' }}>
-            <Icon size={11} />{label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs — hidden when used as a single-tab panel */}
+      {!singleTab && (
+        <div style={{ flexShrink: 0, display: 'flex', background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+          {([['presets', FiZap, 'Presets'], ['config', FiSliders, 'Config'], ['tracks', FiList, 'Tracks']] as const).map(([id, Icon, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              style={{ flex: 1, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, fontWeight: tab === id ? 700 : 500,
+                background: tab === id ? C.accentBg : 'transparent',
+                borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`,
+                color: tab === id ? C.accent : C.muted, transition: 'all 0.12s' }}>
+              <Icon size={11} />{label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -351,7 +354,7 @@ const AnimationConfigPanel: React.FC = () => {
               {presetSearch && <button onClick={() => setPresetSearch('')} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: '0 4px' }}>×</button>}
             </div>
             <div style={{ padding: '6px 8px 2px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-              {['All', ...ANIMATION_CATEGORIES].map(cat => (
+              {['All', ...(customAnimations.length > 0 ? ['★ Custom'] : []), ...ANIMATION_CATEGORIES].map(cat => (
                 <button key={cat} onClick={() => setActiveCategory(cat)}
                   style={{ padding: '2px 8px', fontSize: 9, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
                     background: activeCategory === cat ? C.accentBg : C.surface2,

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Router as WouterRouter, Route, Switch } from 'wouter';
 
 /* ── Legacy type re-exports (MenuBar still imports these) ── */
-export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events';
+export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'anim-presets' | 'anim-config' | 'anim-tracks';
 export interface WinState {
   id: WinId; title: string; visible: boolean; minimized: boolean;
   docked: boolean; zIndex: number; rect: { x: number; y: number; w: number; h: number };
@@ -183,6 +183,9 @@ export default function App() {
 function DesktopApp() {
   const { mode, setMode, notification, files, showNotification, activeFileId } = useEditorStore();
   const glRef = useRef<GoldenLayoutEditorHandle>(null);
+  const [openPanels, setOpenPanels] = useState<import('./components/GoldenLayoutEditor').PanelType[]>(
+    ['files', 'code', 'preview']
+  );
 
   const applyModePreset = useCallback((m: Mode) => {
     setMode(m);
@@ -213,13 +216,16 @@ function DesktopApp() {
   const activeFileName = useEditorStore(s => s.files.find(f => f.id === s.activeFileId)?.name || '');
 
   const PANEL_BTNS: { type: PanelType; icon: React.ReactNode; label: string; title: string }[] = [
-    { type: 'files',      icon: <FiFolder size={12} />,   label: 'Explorer',  title: 'File Explorer' },
-    { type: 'code',       icon: <FiCode size={12} />,     label: 'Code',      title: 'Code Editor' },
-    { type: 'preview',    icon: <FiMonitor size={12} />,  label: 'Preview',   title: 'Preview' },
-    { type: 'console',    icon: <FiTerminal size={12} />, label: 'Console',   title: 'Console (Ctrl+`)' },
-    { type: 'properties', icon: <FiSliders size={12} />,  label: 'Props',     title: 'Properties' },
-    { type: 'timeline',   icon: <FiClock size={12} />,    label: 'Timeline',  title: 'Timeline' },
-    { type: 'events',     icon: <FiZap size={12} />,      label: 'Events',    title: 'Event Listeners' },
+    { type: 'files',        icon: <FiFolder size={12} />,   label: 'Explorer',     title: 'File Explorer' },
+    { type: 'code',         icon: <FiCode size={12} />,     label: 'Code',         title: 'Code Editor' },
+    { type: 'preview',      icon: <FiMonitor size={12} />,  label: 'Preview',      title: 'Preview' },
+    { type: 'console',      icon: <FiTerminal size={12} />, label: 'Console',      title: 'Console (Ctrl+`)' },
+    { type: 'properties',   icon: <FiSliders size={12} />,  label: 'Props',        title: 'Properties' },
+    { type: 'timeline',     icon: <FiClock size={12} />,    label: 'Timeline',     title: 'Timeline' },
+    { type: 'events',       icon: <FiZap size={12} />,      label: 'Events',       title: 'Event Listeners' },
+    { type: 'anim-presets', icon: <FiBox size={12} />,      label: 'Presets',      title: 'Anim Presets' },
+    { type: 'anim-config',  icon: <FiSliders size={12} />,  label: 'Anim Config',  title: 'Anim Config' },
+    { type: 'anim-tracks',  icon: <FiLayout size={12} />,   label: 'Anim Tracks',  title: 'Anim Tracks' },
   ];
 
   return (
@@ -235,7 +241,7 @@ function DesktopApp() {
           wins={PANEL_BTNS.map(b => ({
             id: b.type as import('./App').WinId,
             title: b.title,
-            visible: true,
+            visible: openPanels.includes(b.type as import('./components/GoldenLayoutEditor').PanelType),
             minimized: false,
             docked: true,
             zIndex: 1,
@@ -278,6 +284,7 @@ function DesktopApp() {
         <GoldenLayoutEditor
           ref={glRef}
           mode={mode as Mode}
+          onPanelsChange={setOpenPanels}
         />
       </div>
 
