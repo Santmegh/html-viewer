@@ -71,7 +71,7 @@ export interface PreviewTab {
   fileId?: string;
 }
 
-export type AnimTrigger = 'load' | 'hover' | 'click';
+export type AnimTrigger = 'load' | 'hover' | 'click' | 'scroll';
 
 export interface TimelineTrack {
   id: string;
@@ -88,6 +88,22 @@ export interface TimelineTrack {
 export interface CustomAnimation {
   name: string;
   keyframes: string;
+}
+
+export interface EventBinding {
+  id: string;
+  target: string;
+  event: string;
+  customEvent?: string;
+  action: 'playAnimation' | 'toggleClass' | 'showHide' | 'setAttribute' | 'snippet';
+  animationName?: string;
+  animationDuration?: string;
+  animationEasing?: string;
+  className?: string;
+  attrName?: string;
+  attrValue?: string;
+  snippet?: string;
+  enabled: boolean;
 }
 
 export interface TimelineState {
@@ -167,6 +183,12 @@ interface EditorStore {
 
   pendingFileDialog: { type: 'create' | 'rename'; fileId?: string } | null;
   setPendingFileDialog: (d: { type: 'create' | 'rename'; fileId?: string } | null) => void;
+
+  eventBindings: EventBinding[];
+  addEventBinding: (b: EventBinding) => void;
+  removeEventBinding: (id: string) => void;
+  updateEventBinding: (id: string, updates: Partial<EventBinding>) => void;
+  setEventBindings: (bindings: EventBinding[]) => void;
 }
 
 const DEFAULT_HTML = `<!DOCTYPE html>
@@ -786,4 +808,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   pendingFileDialog: null,
   setPendingFileDialog: (d) => set({ pendingFileDialog: d }),
+
+  eventBindings: [],
+  addEventBinding: (b) => set((s) => ({ eventBindings: [...s.eventBindings, b] })),
+  removeEventBinding: (id) => set((s) => ({ eventBindings: s.eventBindings.filter(b => b.id !== id) })),
+  updateEventBinding: (id, updates) => set((s) => ({
+    eventBindings: s.eventBindings.map(b => b.id === id ? { ...b, ...updates } : b),
+  })),
+  setEventBindings: (bindings) => set({ eventBindings: bindings }),
 }));

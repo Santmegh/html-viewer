@@ -25,10 +25,10 @@ interface MenuItem {
 
 const WIN_LABELS: Record<WinId, string> = {
   files: 'File Explorer', code: 'Code Editor', preview: 'Preview / Visual Editor',
-  properties: 'Properties', timeline: 'Timeline', components: 'Components',
+  properties: 'Properties', timeline: 'Timeline', events: 'Event Listeners',
 };
 const WIN_ICONS: Record<WinId, string> = {
-  files: '📁', code: '</>', preview: '🖥', properties: '⚙', timeline: '⏱', components: '📦',
+  files: '📁', code: '</>', preview: '🖥', properties: '⚙', timeline: '⏱', events: '⚡',
 };
 
 const MenuBar: React.FC<MenuBarProps> = ({

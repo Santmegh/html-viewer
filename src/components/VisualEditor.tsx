@@ -1251,7 +1251,7 @@ const VisualEditor: React.FC = () => {
   const isDragging = activeOp !== null;
 
   return (
-    <div style={{ position: 'relative', flex: 1, overflow: 'hidden', background: '#2d2d2d', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#2d2d2d', display: 'flex', flexDirection: 'column' }}>
 
       {/* Hint bar with breadcrumb */}
       <div style={{

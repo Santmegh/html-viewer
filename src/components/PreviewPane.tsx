@@ -561,9 +561,12 @@ const PreviewPane: React.FC = () => {
 
           {/* Preview Area */}
           <div style={{
-            flex: 1, overflow: 'auto', background: viewport === 'desktop' ? '#fff' : '#2a2a2a',
-            display: 'flex', alignItems: viewport === 'mobile' ? 'center' : 'flex-start',
-            justifyContent: 'center', padding: viewport === 'desktop' ? 0 : 24,
+            flex: 1, minHeight: 0, overflow: viewport === 'desktop' ? 'hidden' : 'auto',
+            background: viewport === 'desktop' ? '#fff' : '#2a2a2a',
+            display: 'flex',
+            alignItems: viewport === 'mobile' ? 'center' : viewport === 'tablet' ? 'flex-start' : 'stretch',
+            justifyContent: viewport === 'desktop' ? 'stretch' : 'center',
+            padding: viewport === 'desktop' ? 0 : 24,
             position: 'relative',
           }}>
             {loading && (

@@ -162,34 +162,178 @@ const CLICK_RUNTIME = `
   }, true);
 })();`.trim();
 
-function buildAnimationCSS(tracks: Track[], custom: CustomAnimation[]): { css: string; needsClickRuntime: boolean; clickSelectors: string[] } {
+const SCROLL_RUNTIME = `
+(function(){
+  if (window.__timelineScrollWired) return; window.__timelineScrollWired = true;
+  var sels = __SCROLL_SELS__;
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting){
+        entry.target.classList.remove('__tl-scrolled');
+        void entry.target.offsetWidth;
+        entry.target.classList.add('__tl-scrolled');
+      }
+    });
+  }, { threshold: 0.12 });
+  function tag(){
+    sels.forEach(function(s){
+      try { document.querySelectorAll(s).forEach(function(el){ el.setAttribute('data-tl-scroll','1'); obs.observe(el); }); } catch(e){}
+    });
+  }
+  if (document.readyState !== 'loading') tag();
+  else document.addEventListener('DOMContentLoaded', tag);
+})();`.trim();
+
+function buildAnimationCSS(tracks: Track[], custom: CustomAnimation[]): { css: string; needsClickRuntime: boolean; clickSelectors: string[]; scrollSelectors: string[] } {
   const customMap: Record<string, string> = {};
   custom.forEach(c => { customMap[c.name] = c.keyframes; });
   const usedNames = new Set(tracks.map(t => t.animation).filter(a => a && a !== 'none'));
   const keyframeBlocks = Array.from(usedNames).map(p => customMap[p] || KEYFRAMES_MAP[p] || '').filter(Boolean).join('\n');
   const clickSelectors: string[] = [];
+  const scrollSelectors: string[] = [];
   const rules = tracks.filter(t => t.animation !== 'none' && t.element.trim()).map(t => {
     const iter = t.iteration === 'infinite' ? 'infinite' : parseInt(t.iteration) || 1;
     const trigger = t.trigger || 'load';
     const animLine = `animation: ${t.animation} ${t.duration}s ${t.easing} ${t.delay}s ${iter} normal both !important; will-change: transform, opacity;`;
     if (trigger === 'hover') return `${t.element}:hover { ${animLine} }`;
     if (trigger === 'click') { clickSelectors.push(t.element.trim()); return `${t.element}.__tl-clicked { ${animLine} }`; }
+    if (trigger === 'scroll') { scrollSelectors.push(t.element.trim()); return `${t.element}.__tl-scrolled { ${animLine} }`; }
     return `${t.element} { ${animLine} }`;
   }).join('\n');
-  return { css: `${keyframeBlocks}\n${rules}`, needsClickRuntime: clickSelectors.length > 0, clickSelectors };
+  return { css: `${keyframeBlocks}\n${rules}`, needsClickRuntime: clickSelectors.length > 0, clickSelectors, scrollSelectors };
 }
 
-function injectTimelineCssIntoHtml(html: string, css: string, needsClickRuntime: boolean, clickSelectors: string[]) {
+function injectTimelineCssIntoHtml(html: string, css: string, needsClickRuntime: boolean, clickSelectors: string[], scrollSelectors: string[]) {
   let cleaned = html
     .replace(/\n?\s*<style\s+id=["']timeline-animations["'][\s\S]*?<\/style>/i, '')
-    .replace(/\n?\s*<script\s+id=["']timeline-click-runtime["'][\s\S]*?<\/script>/i, '');
-  if (!css.trim() && !needsClickRuntime) return cleaned;
-  const tagScript = needsClickRuntime
+    .replace(/\n?\s*<script\s+id=["']timeline-click-runtime["'][\s\S]*?<\/script>/i, '')
+    .replace(/\n?\s*<script\s+id=["']timeline-scroll-runtime["'][\s\S]*?<\/script>/i, '');
+  if (!css.trim() && !needsClickRuntime && scrollSelectors.length === 0) return cleaned;
+  const tagClickScript = needsClickRuntime
     ? `<script id="timeline-click-runtime">\n(function(){\n  var sels = ${JSON.stringify(clickSelectors)};\n  function tag(){ sels.forEach(function(s){ try { document.querySelectorAll(s).forEach(function(el){ el.setAttribute('data-tl-click','1'); }); } catch(e){} }); }\n  if (document.readyState !== 'loading') tag(); else document.addEventListener('DOMContentLoaded', tag);\n  ${CLICK_RUNTIME}\n})();\n</script>` : '';
+  const tagScrollScript = scrollSelectors.length > 0
+    ? `<script id="timeline-scroll-runtime">\n${SCROLL_RUNTIME.replace('__SCROLL_SELS__', JSON.stringify(scrollSelectors))}\n</script>` : '';
   const styleBlock = css.trim() ? `<style id="timeline-animations">\n${css}\n</style>` : '';
-  const block = `${styleBlock}\n${tagScript}`;
+  const block = `${styleBlock}\n${tagClickScript}\n${tagScrollScript}`;
   if (cleaned.includes('</head>')) return cleaned.replace('</head>', `${block}\n</head>`);
   return `${block}\n${cleaned}`;
+}
+
+/* ── Visual Keyframe Editor ── */
+interface VisualKF {
+  id: string;
+  pct: number;
+  opacity: string;
+  translateX: string;
+  translateY: string;
+  scale: string;
+  rotate: string;
+  backgroundColor: string;
+  color: string;
+}
+
+function defaultKF(pct: number): VisualKF {
+  return { id: `${pct}-${Date.now()}`, pct, opacity: '', translateX: '', translateY: '', scale: '', rotate: '', backgroundColor: '', color: '' };
+}
+
+function visualKFtoCode(name: string, stops: VisualKF[]): string {
+  const sorted = [...stops].sort((a, b) => a.pct - b.pct);
+  const lines = sorted.map(s => {
+    const parts: string[] = [];
+    const transforms: string[] = [];
+    if (s.translateX.trim()) transforms.push(`translateX(${s.translateX})`);
+    if (s.translateY.trim()) transforms.push(`translateY(${s.translateY})`);
+    if (s.scale.trim()) transforms.push(`scale(${s.scale})`);
+    if (s.rotate.trim()) transforms.push(`rotate(${s.rotate})`);
+    if (transforms.length) parts.push(`transform: ${transforms.join(' ')}`);
+    if (s.opacity.trim()) parts.push(`opacity: ${s.opacity}`);
+    if (s.backgroundColor.trim()) parts.push(`background-color: ${s.backgroundColor}`);
+    if (s.color.trim()) parts.push(`color: ${s.color}`);
+    const body = parts.length ? parts.join('; ') : 'opacity: 1';
+    return `  ${s.pct}% { ${body}; }`;
+  });
+  return `@keyframes ${name || 'myAnim'} {\n${lines.join('\n')}\n}`;
+}
+
+const VKF_PROPS: { key: keyof VisualKF; label: string; placeholder: string; color: string }[] = [
+  { key: 'opacity',         label: 'Opacity',       placeholder: '0 → 1',       color: '#e5a45a' },
+  { key: 'translateX',      label: 'Move X',        placeholder: '0px, -20px',  color: '#4ec9b0' },
+  { key: 'translateY',      label: 'Move Y',        placeholder: '0px, 30px',   color: '#4ec9b0' },
+  { key: 'scale',           label: 'Scale',         placeholder: '0.8, 1.2',    color: '#9cdcfe' },
+  { key: 'rotate',          label: 'Rotate',        placeholder: '0deg, 360deg',color: '#c586c0' },
+  { key: 'backgroundColor', label: 'BG Color',      placeholder: '#ff5252',     color: '#f48771' },
+  { key: 'color',           label: 'Text Color',    placeholder: '#ffffff',     color: '#dcdcaa' },
+];
+
+function VisualKeyframeEditor({ name, stops, onChange }: {
+  name: string;
+  stops: VisualKF[];
+  onChange: (stops: VisualKF[]) => void;
+}) {
+  const addStop = () => {
+    const existing = stops.map(s => s.pct);
+    const candidates = [0, 25, 50, 75, 100].filter(p => !existing.includes(p));
+    const pct = candidates.length ? candidates[0] : Math.min(100, Math.max(0, Math.round((stops[stops.length - 1]?.pct ?? 50) + 25)));
+    onChange([...stops, defaultKF(pct)].sort((a, b) => a.pct - b.pct));
+  };
+  const removeStop = (id: string) => onChange(stops.filter(s => s.id !== id));
+  const updateStop = (id: string, field: keyof VisualKF, val: string | number) =>
+    onChange(stops.map(s => s.id === id ? { ...s, [field]: val } : s));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {stops.length === 0 && (
+        <div style={{ color: '#555', fontSize: 11, textAlign: 'center', padding: '12px 0' }}>
+          No keyframes yet. Click <strong style={{ color: '#888' }}>+ Add Stop</strong> to begin.
+        </div>
+      )}
+      {stops.map((s, idx) => (
+        <div key={s.id} style={{ background: '#111', border: '1px solid #2e2e30', borderRadius: 5, overflow: 'hidden' }}>
+          {/* Stop header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#18181a', borderBottom: '1px solid #252528' }}>
+            <span style={{ fontSize: 9, color: '#555', fontWeight: 700, textTransform: 'uppercase' }}>Stop {idx + 1}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+              <input type="range" min={0} max={100} step={1} value={s.pct}
+                onChange={e => updateStop(s.id, 'pct', parseInt(e.target.value))}
+                style={{ flex: 1, accentColor: '#e5a45a' } as any} />
+              <span style={{ fontSize: 10, color: '#e5a45a', fontWeight: 700, minWidth: 30, textAlign: 'right', fontFamily: 'monospace' }}>{s.pct}%</span>
+            </div>
+            <button onClick={() => removeStop(s.id)}
+              style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 2, fontSize: 11 }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#f88')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#555')}>✕</button>
+          </div>
+          {/* Properties */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: '6px 8px' }}>
+            {VKF_PROPS.map(p => (
+              <div key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 8, color: p.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.label}</span>
+                <input
+                  value={(s as any)[p.key]}
+                  onChange={e => updateStop(s.id, p.key, e.target.value)}
+                  placeholder={p.placeholder}
+                  style={{ background: '#1a1a1c', border: '1px solid #2d2d2d', borderRadius: 3, padding: '2px 5px', fontSize: 10, color: '#ccc', outline: 'none', fontFamily: 'monospace', width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {/* Generated code preview */}
+      {stops.length > 0 && (
+        <div style={{ background: '#0d0d0f', border: '1px solid #252528', borderRadius: 4, padding: 8 }}>
+          <div style={{ fontSize: 8, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Generated CSS</div>
+          <pre style={{ margin: 0, fontSize: 9, color: '#dcdcaa', fontFamily: 'monospace', lineHeight: 1.5, overflow: 'auto', maxHeight: 100 }}>
+            {visualKFtoCode(name, stops)}
+          </pre>
+        </div>
+      )}
+      <button onClick={addStop}
+        style={{ padding: '5px', background: 'rgba(156,220,254,0.06)', border: '1px dashed rgba(156,220,254,0.2)', borderRadius: 4, color: '#9cdcfe', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+        + Add Keyframe Stop
+      </button>
+    </div>
+  );
 }
 
 const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
@@ -218,6 +362,8 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const tracksRef = useRef(tracks);
   tracksRef.current = tracks;
   const [showCurveEditor, setShowCurveEditor] = useState(false);
+  const [customEditorMode, setCustomEditorMode] = useState<'visual' | 'code'>('visual');
+  const [visualKFs, setVisualKFs] = useState<VisualKF[]>([]);
 
   const allAnimationNames = useMemo(
     () => [...customAnimations.map(c => c.name), ...ANIMATION_PRESETS.map(p => p.name)],
@@ -229,10 +375,10 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     requestAnimationFrame(() => { requestAnimationFrame(() => setTimelineAnimationStyle(css)); });
   }, [setTimelineAnimationStyle]);
 
-  const persistAnimations = useCallback((built: { css: string; needsClickRuntime: boolean; clickSelectors: string[] }) => {
+  const persistAnimations = useCallback((built: { css: string; needsClickRuntime: boolean; clickSelectors: string[]; scrollSelectors: string[] }) => {
     const htmlFile = files.find(f => f.type === 'html');
     if (!htmlFile) return;
-    const updated = injectTimelineCssIntoHtml(htmlFile.content, built.css, built.needsClickRuntime, built.clickSelectors);
+    const updated = injectTimelineCssIntoHtml(htmlFile.content, built.css, built.needsClickRuntime, built.clickSelectors, built.scrollSelectors);
     if (updated !== htmlFile.content) updateFileContent(htmlFile.id, updated);
   }, [files, updateFileContent]);
 
@@ -259,9 +405,10 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   useEffect(() => {
     if (!animationsApplied || playing) return;
     const built = buildAnimationCSS(tracks, customAnimations);
-    pushAnimationCSS(built.css);
+    // Only persist to the HTML file — do NOT re-push live CSS here, as that would
+    // restart running animations every time a track property changes.
     persistAnimations(built);
-  }, [tracks, customAnimations, animationsApplied, playing, pushAnimationCSS, persistAnimations]);
+  }, [tracks, customAnimations, animationsApplied, playing, persistAnimations]);
 
   const stopAndReset = () => {
     setTimelineState(prev => ({ ...prev, playing: false, currentTime: 0 }));
@@ -283,7 +430,7 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const clearAnimations = () => {
     setTimelineState(prev => ({ ...prev, playing: false, currentTime: 0, animationsApplied: false }));
     setTimelineAnimationStyle('');
-    persistAnimations({ css: '', needsClickRuntime: false, clickSelectors: [] });
+    persistAnimations({ css: '', needsClickRuntime: false, clickSelectors: [], scrollSelectors: [] });
     showNotification('Animations cleared');
   };
 
@@ -499,7 +646,7 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         </button>
 
         <button title="Create custom @keyframes"
-          onClick={() => { setEditingCustom({ name: '', keyframes: '@keyframes myAnim {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}' }); setShowCustomEditor(true); }}
+          onClick={() => { setEditingCustom({ name: '', keyframes: '@keyframes myAnim {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}' }); setVisualKFs([defaultKF(0), defaultKF(100)]); setCustomEditorMode('visual'); setShowCustomEditor(true); }}
           style={{ ...hdrBtn, width: 'auto', padding: '0 7px', fontSize: 10, fontWeight: 600, color: '#9cdcfe', background: 'rgba(156,220,254,0.07)', border: '1px solid rgba(156,220,254,0.25)', borderRadius: 3 }}>
           + Custom
         </button>
@@ -563,7 +710,7 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                   <div key={c.name} style={{ padding: '6px 8px', background: '#222224', border: '1px solid #2e2e30', borderRadius: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <button onClick={() => applyPreset(c.name)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#9cdcfe', fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: 0 }}>{c.name}</button>
-                      <button onClick={() => { setEditingCustom(c); setShowCustomEditor(true); }} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 2 }}><FiEdit3 size={10} /></button>
+                      <button onClick={() => { setEditingCustom(c); setVisualKFs([defaultKF(0), defaultKF(100)]); setCustomEditorMode('visual'); setShowCustomEditor(true); }} style={{ background: 'none', border: 'none', color: '#777', cursor: 'pointer', padding: 2 }}><FiEdit3 size={10} /></button>
                       <button onClick={() => deleteCustomAnimation(c.name)} style={{ background: 'none', border: 'none', color: '#f88', cursor: 'pointer', padding: 2 }}><FiTrash2 size={10} /></button>
                     </div>
                   </div>
@@ -576,56 +723,99 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
       {/* Custom Animation Editor */}
       {showCustomEditor && editingCustom && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => { setShowCustomEditor(false); setEditingCustom(null); }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ background: '#1e1e20', border: '1px solid #3e3e40', borderRadius: 8, width: 'min(520px, 100%)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+            style={{ background: '#1e1e20', border: '1px solid #3e3e40', borderRadius: 8, width: 'min(560px, 100%)', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }}>
+
+            {/* Dialog Header */}
             <div style={{ padding: '8px 12px', borderBottom: '1px solid #2e2e30', display: 'flex', alignItems: 'center', gap: 8 }}>
               <FiEdit3 size={13} color="#9cdcfe" />
               <span style={{ fontSize: 11, fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {editingCustom.name ? `Edit "${editingCustom.name}"` : 'Create Custom Animation'}
               </span>
               <div style={{ flex: 1 }} />
+              {/* Mode toggle */}
+              <div style={{ display: 'flex', background: '#111', borderRadius: 4, padding: 2, gap: 1 }}>
+                {(['visual', 'code'] as const).map(m => (
+                  <button key={m} onClick={() => {
+                    if (m === 'code' && customEditorMode === 'visual' && visualKFs.length > 0) {
+                      setEditingCustom({ ...editingCustom, keyframes: visualKFtoCode(editingCustom.name, visualKFs) });
+                    }
+                    setCustomEditorMode(m);
+                  }}
+                    style={{ padding: '2px 10px', fontSize: 9, fontWeight: 700, borderRadius: 3, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: '0.05em', border: 'none', background: customEditorMode === m ? (m === 'visual' ? 'rgba(156,220,254,0.18)' : 'rgba(229,164,90,0.18)') : 'transparent', color: customEditorMode === m ? (m === 'visual' ? '#9cdcfe' : '#e5a45a') : '#555' }}>
+                    {m === 'visual' ? '◈ Visual' : '</> Code'}
+                  </button>
+                ))}
+              </div>
               <button onClick={() => { setShowCustomEditor(false); setEditingCustom(null); }} style={hdrBtn}><FiX size={12} /></button>
             </div>
-            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+
+            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1 }}>
+              {/* Name */}
               <div>
                 <div style={{ fontSize: 9, color: '#777', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Animation Name</div>
                 <input value={editingCustom.name} onChange={e => setEditingCustom({ ...editingCustom, name: e.target.value.replace(/[^a-zA-Z0-9_-]/g, '') })}
                   placeholder="myAwesomeAnim"
                   style={{ width: '100%', background: '#252528', border: '1px solid #2e2e30', borderRadius: 4, padding: '5px 8px', fontSize: 11, color: '#ccc', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
               </div>
-              <div>
-                <div style={{ fontSize: 9, color: '#777', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>@keyframes</div>
-                <textarea value={editingCustom.keyframes}
-                  onChange={e => setEditingCustom({ ...editingCustom, keyframes: e.target.value })}
-                  rows={10}
-                  style={{ width: '100%', background: '#111', border: '1px solid #2e2e30', borderRadius: 4, padding: 8, fontSize: 11, color: '#dcdcaa', outline: 'none', fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.5 }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 9, color: '#555', alignSelf: 'center' }}>Templates:</span>
-                {[
-                  { label: 'Fade', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  from { opacity: 0; }\n  to   { opacity: 1; }\n}` },
-                  { label: 'Bounce', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%, 100% { transform: translateY(0); }\n  50% { transform: translateY(-30px); }\n}` },
-                  { label: 'Glow', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%, 100% { box-shadow: 0 0 4px #fff; }\n  50% { box-shadow: 0 0 24px #e5a45a; }\n}` },
-                  { label: 'Color', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%   { background: #ff5252; }\n  50%  { background: #4caf50; }\n  100% { background: #ff5252; }\n}` },
-                  { label: 'Morph', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%   { border-radius: 0; }\n  50%  { border-radius: 50%; }\n  100% { border-radius: 0; }\n}` },
-                ].map(t => (
-                  <button key={t.label} onClick={() => setEditingCustom({ ...editingCustom, keyframes: t.tpl(editingCustom.name) })}
-                    style={{ padding: '2px 8px', fontSize: 9, background: '#252528', border: '1px solid #2e2e30', borderRadius: 10, color: '#888', cursor: 'pointer' }}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+
+              {/* Visual mode */}
+              {customEditorMode === 'visual' ? (
+                <div>
+                  <div style={{ fontSize: 9, color: '#9cdcfe', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span>◈ Keyframe Stops</span>
+                    <span style={{ color: '#444', fontWeight: 400, fontSize: 8 }}>— set properties at each point in time</span>
+                  </div>
+                  <VisualKeyframeEditor name={editingCustom.name} stops={visualKFs} onChange={setVisualKFs} />
+                </div>
+              ) : (
+                /* Code mode */
+                <div>
+                  <div style={{ fontSize: 9, color: '#777', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>@keyframes CSS</div>
+                  <textarea value={editingCustom.keyframes}
+                    onChange={e => setEditingCustom({ ...editingCustom, keyframes: e.target.value })}
+                    rows={12}
+                    style={{ width: '100%', background: '#111', border: '1px solid #2e2e30', borderRadius: 4, padding: 8, fontSize: 11, color: '#dcdcaa', outline: 'none', fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.5 }}
+                  />
+                  {/* Templates */}
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+                    <span style={{ fontSize: 9, color: '#555', alignSelf: 'center' }}>Templates:</span>
+                    {[
+                      { label: 'Fade',   tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  from { opacity: 0; }\n  to   { opacity: 1; }\n}` },
+                      { label: 'Bounce', tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%, 100% { transform: translateY(0); }\n  50% { transform: translateY(-30px); }\n}` },
+                      { label: 'Glow',   tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%, 100% { box-shadow: 0 0 4px #fff; }\n  50% { box-shadow: 0 0 24px #e5a45a; }\n}` },
+                      { label: 'Color',  tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%   { background: #ff5252; }\n  50%  { background: #4caf50; }\n  100% { background: #ff5252; }\n}` },
+                      { label: 'Morph',  tpl: (n: string) => `@keyframes ${n || 'myAnim'} {\n  0%   { border-radius: 0; }\n  50%  { border-radius: 50%; }\n  100% { border-radius: 0; }\n}` },
+                    ].map(t => (
+                      <button key={t.label} onClick={() => setEditingCustom({ ...editingCustom, keyframes: t.tpl(editingCustom.name) })}
+                        style={{ padding: '2px 8px', fontSize: 9, background: '#252528', border: '1px solid #2e2e30', borderRadius: 10, color: '#888', cursor: 'pointer' }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div style={{ padding: '8px 12px', borderTop: '1px solid #2e2e30', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-              <button onClick={() => { setShowCustomEditor(false); setEditingCustom(null); }}
-                style={{ padding: '5px 12px', background: 'none', border: '1px solid #2e2e30', borderRadius: 4, color: '#777', cursor: 'pointer', fontSize: 11 }}>Cancel</button>
-              <button onClick={() => saveCustomAnimation(editingCustom, editingCustom.name && customAnimations.find(c => c.name === editingCustom.name) ? editingCustom.name : undefined)}
-                style={{ padding: '5px 12px', background: 'rgba(78,201,176,0.12)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 4, color: '#4ec9b0', cursor: 'pointer', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <FiSave size={11} /> Save
-              </button>
+
+            <div style={{ padding: '8px 12px', borderTop: '1px solid #2e2e30', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 9, color: '#444' }}>
+                {customEditorMode === 'visual' ? 'Visual mode auto-generates @keyframes CSS' : 'Write raw @keyframes CSS'}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => { setShowCustomEditor(false); setEditingCustom(null); }}
+                  style={{ padding: '5px 12px', background: 'none', border: '1px solid #2e2e30', borderRadius: 4, color: '#777', cursor: 'pointer', fontSize: 11 }}>Cancel</button>
+                <button onClick={() => {
+                  const finalAnim = customEditorMode === 'visual' && visualKFs.length > 0
+                    ? { ...editingCustom, keyframes: visualKFtoCode(editingCustom.name, visualKFs) }
+                    : editingCustom;
+                  saveCustomAnimation(finalAnim, finalAnim.name && customAnimations.find(c => c.name === finalAnim.name) ? finalAnim.name : undefined);
+                }}
+                  style={{ padding: '5px 12px', background: 'rgba(78,201,176,0.12)', border: '1px solid rgba(78,201,176,0.35)', borderRadius: 4, color: '#4ec9b0', cursor: 'pointer', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <FiSave size={11} /> Save
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -800,19 +990,26 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             </PropRow>
 
             <PropRow label="Trigger">
-              <div style={{ display: 'flex', gap: 2, flex: 1, background: '#111', border: '1px solid #2e2e30', borderRadius: 3, padding: 2 }}>
-                {(['load', 'hover', 'click'] as const).map(opt => {
+              <div style={{ display: 'flex', gap: 2, flex: 1, background: '#111', border: '1px solid #2e2e30', borderRadius: 3, padding: 2, flexWrap: 'wrap' }}>
+                {(['load', 'hover', 'click', 'scroll'] as const).map(opt => {
                   const cur = selectedTrack.trigger || 'load';
                   const sel2 = cur === opt;
+                  const triggerColor = { load: '#4ec9b0', hover: '#9cdcfe', click: '#e5a45a', scroll: '#c586c0' }[opt];
                   return (
                     <button key={opt} onClick={() => updateTrack(selectedTrack.id, { trigger: opt })}
-                      style={{ flex: 1, padding: '2px 0', fontSize: 8, fontWeight: 600, background: sel2 ? (opt === 'load' ? 'rgba(78,201,176,0.18)' : opt === 'hover' ? 'rgba(156,220,254,0.18)' : 'rgba(229,164,90,0.18)') : 'transparent', color: sel2 ? (opt === 'load' ? '#4ec9b0' : opt === 'hover' ? '#9cdcfe' : '#e5a45a') : '#555', border: 'none', borderRadius: 2, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {opt}
+                      title={opt === 'scroll' ? 'Animate when element scrolls into view (Intersection Observer)' : undefined}
+                      style={{ flex: 1, padding: '2px 0', fontSize: 8, fontWeight: 600, background: sel2 ? `${triggerColor}28` : 'transparent', color: sel2 ? triggerColor : '#555', border: 'none', borderRadius: 2, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 28 }}>
+                      {opt === 'scroll' ? '↕' : opt}
                     </button>
                   );
                 })}
               </div>
             </PropRow>
+            {(selectedTrack.trigger === 'scroll') && (
+              <div style={{ fontSize: 8, color: '#c586c0', background: 'rgba(197,134,192,0.08)', border: '1px solid rgba(197,134,192,0.2)', borderRadius: 3, padding: '3px 6px', marginBottom: 4 }}>
+                ↕ Plays when element enters viewport (Intersection Observer)
+              </div>
+            )}
 
             <div style={{ marginTop: 6, display: 'flex', gap: 4 }}>
               <button onClick={() => duplicateTrack(selectedTrack)}
@@ -826,24 +1023,6 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Status bar / quick presets */}
-      <div style={{ height: 28, flexShrink: 0, borderTop: '1px solid #2e2e30', background: '#1a1a1c', display: 'flex', alignItems: 'center', gap: 3, padding: '0 8px', overflow: 'hidden' }}>
-        <span style={{ fontSize: 9, color: '#444', flexShrink: 0 }}>Quick:</span>
-        {['fadeIn', 'slideUp', 'bounce', 'pulse', 'zoom', 'spin', 'shake'].map(p => (
-          <button key={p} onClick={() => applyPreset(p)}
-            style={{ padding: '1px 6px', fontSize: 9, borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit',
-              background: animationConfig.preset === p ? 'rgba(229,164,90,0.12)' : '#111',
-              border: `1px solid ${animationConfig.preset === p ? 'rgba(229,164,90,0.45)' : '#222'}`,
-              color: animationConfig.preset === p ? '#e5a45a' : '#666' }}>
-            {p}
-          </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 9, color: animationsApplied ? '#4ec9b0' : '#333' }}>
-          {tracks.length} tracks{animationsApplied ? ' · applied' : ''}
-        </span>
       </div>
 
       {ctxEl}

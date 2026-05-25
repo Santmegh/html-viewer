@@ -153,6 +153,31 @@ const AnimationConfigPanel: React.FC = () => {
     applySelectedStyle, setTimelineAnimationStyle, timelineAnimationStyle,
   } = useEditorStore();
 
+  const applyAnimationForPreset = useCallback((presetName: string, meta: { defaultDuration?: number; defaultEasing?: string; defaultIteration?: string } | null) => {
+    if (!selectedElement || !selectedSelector) return;
+    const dur = meta?.defaultDuration || 0.6;
+    const easing = meta?.defaultEasing || 'ease';
+    const iter = meta?.defaultIteration || '1';
+    const trigger = (animationConfig.trigger || 'load') as 'load' | 'hover' | 'click';
+    setTimelineState(prev => {
+      const idx = prev.tracks.findIndex(t => t.element.trim() === selectedSelector.trim());
+      if (idx >= 0) {
+        const next = [...prev.tracks];
+        next[idx] = { ...next[idx], animation: presetName, duration: dur, easing, iteration: iter, trigger };
+        return { ...prev, tracks: next };
+      }
+      return { ...prev, tracks: [...prev.tracks, { id: Date.now().toString(), element: selectedSelector, animation: presetName, duration: dur, delay: 0, color: COLORS[prev.tracks.length % COLORS.length], easing, iteration: iter, trigger }] };
+    });
+    const kf = KEYFRAMES_MAP[presetName];
+    if (kf) {
+      const htmlFile = files.find(f => f.type === 'html');
+      if (htmlFile) {
+        const updated = injectPropertiesAnimationCssIntoHtml(htmlFile.content, kf);
+        if (updated !== htmlFile.content) updateFileContent(htmlFile.id, updated);
+      }
+    }
+  }, [selectedElement, selectedSelector, animationConfig.trigger, setTimelineState, files, updateFileContent]);
+
   const [tab, setTab] = useState<Tab>('presets');
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [presetSearch, setPresetSearch] = useState('');
@@ -301,17 +326,6 @@ const AnimationConfigPanel: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: C.surface, borderBottom: `1px solid ${C.border}` }}>
-        <FiZap size={13} color={C.accent} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted }}>Animations</span>
-        {selectedElement && (
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: C.accent, background: C.accentBg, border: `1px solid ${C.accentBrd}`, borderRadius: 4, padding: '1px 6px' }}>
-            &lt;{tag}{elId}&gt;
-          </span>
-        )}
-      </div>
-
       {/* Tabs */}
       <div style={{ flexShrink: 0, display: 'flex', background: C.surface, borderBottom: `1px solid ${C.border}` }}>
         {([['presets', FiZap, 'Presets'], ['config', FiSliders, 'Config'], ['tracks', FiList, 'Tracks']] as const).map(([id, Icon, label]) => (
@@ -363,6 +377,10 @@ const AnimationConfigPanel: React.FC = () => {
                       const meta = PRESET_BY_NAME[p.name];
                       setAnimationConfig({ preset: p.name, ...(meta ? { duration: String(meta.defaultDuration), easing: meta.defaultEasing, iteration: meta.defaultIteration || '1' } : {}) });
                       previewAnimation(p.name);
+                      if (selectedElement && selectedSelector) {
+                        applyAnimationForPreset(p.name, meta || null);
+                        showNotification(`Applied "${p.name}" to timeline`);
+                      }
                     }}
                     title={selectedElement ? `Preview "${p.name}" on selected element` : p.description}
                     style={{
@@ -534,28 +552,6 @@ const AnimationConfigPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Footer: quick apply strip */}
-      <div style={{ flexShrink: 0, borderTop: `1px solid ${C.border}`, padding: '5px 8px', background: C.surface, display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-        <span style={{ fontSize: 9, color: C.dim, flexShrink: 0 }}>Quick:</span>
-        {['fadeIn', 'slideUp', 'bounce', 'pulse', 'zoom', 'spin', 'shake', 'flip'].map(p => {
-          const isA = animationConfig.preset === p;
-          const isPlaying = previewingPreset === p;
-          return (
-            <button key={p} onClick={() => {
-              const meta = PRESET_BY_NAME[p];
-              setAnimationConfig({ preset: p, ...(meta ? { duration: String(meta.defaultDuration), easing: meta.defaultEasing } : {}) });
-              previewAnimation(p);
-            }}
-              style={{ padding: '2px 7px', fontSize: 9, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-                background: isPlaying ? 'rgba(78,201,176,0.15)' : isA ? C.accentBg : C.bg,
-                border: `1px solid ${isPlaying ? 'rgba(78,201,176,0.55)' : isA ? C.accentBrd : C.border}`,
-                color: isPlaying ? C.green : isA ? C.accent : C.muted,
-                fontWeight: isPlaying ? 700 : 400 }}>
-              {isPlaying ? `▶ ${p}` : p}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 };

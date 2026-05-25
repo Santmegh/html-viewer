@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Router as WouterRouter, Route, Switch } from 'wouter';
 
 /* ── Legacy type re-exports (MenuBar still imports these) ── */
-export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'components';
+export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events';
 export interface WinState {
   id: WinId; title: string; visible: boolean; minimized: boolean;
   docked: boolean; zIndex: number; rect: { x: number; y: number; w: number; h: number };
@@ -25,7 +25,7 @@ import ConsolePanel from './components/ConsolePanel';
 import { exportProject } from './utils/export';
 import {
   FiCode, FiEye, FiLayout, FiDownload, FiRefreshCw, FiRotateCcw,
-  FiFolder, FiSliders, FiClock, FiMonitor, FiBox, FiX, FiTerminal,
+  FiFolder, FiSliders, FiClock, FiMonitor, FiBox, FiX, FiTerminal, FiZap,
 } from 'react-icons/fi';
 
 /* ─── Non-intrusive AdSense Banner ─── */
@@ -219,81 +219,58 @@ function DesktopApp() {
     { type: 'console',    icon: <FiTerminal size={12} />, label: 'Console',   title: 'Console (Ctrl+`)' },
     { type: 'properties', icon: <FiSliders size={12} />,  label: 'Props',     title: 'Properties' },
     { type: 'timeline',   icon: <FiClock size={12} />,    label: 'Timeline',  title: 'Timeline' },
-    { type: 'components', icon: <FiBox size={12} />,      label: 'Comps',     title: 'Component Library' },
+    { type: 'events',     icon: <FiZap size={12} />,      label: 'Events',    title: 'Event Listeners' },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#111', color: '#ccc', fontFamily: "'Inter', -apple-system, sans-serif", fontSize: 13, overflow: 'hidden' }}>
 
       {/* ── Menu Bar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', height: 30, flexShrink: 0, background: '#323233', borderBottom: '1px solid #3e3e3e', position: 'relative', zIndex: 9999 }}>
+      <div style={{ display: 'flex', alignItems: 'center', height: 32, flexShrink: 0, background: '#323233', borderBottom: '1px solid #3e3e3e', position: 'relative', zIndex: 9999 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', flexShrink: 0 }}>
-          <div style={{ width: 16, height: 16, borderRadius: 3, background: '#e34c26', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff' }}>H</div>
+          <div style={{ width: 18, height: 18, borderRadius: 3, background: '#e34c26', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#fff' }}>H</div>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#ccc' }}>HTML Editor</span>
         </div>
         <MenuBar
-          wins={[]}
-          onToggleWin={() => {}}
-          onOpenWin={() => {}}
-          onResetLayout={() => applyModePreset(mode as Mode)}
+          wins={PANEL_BTNS.map(b => ({
+            id: b.type as import('./App').WinId,
+            title: b.title,
+            visible: true,
+            minimized: false,
+            docked: true,
+            zIndex: 1,
+            rect: { x: 0, y: 0, w: 300, h: 400 },
+          }))}
+          onToggleWin={(id) => handlePanelToggle(id as import('./components/GoldenLayoutEditor').PanelType)}
+          onOpenWin={(id) => handlePanelToggle(id as import('./components/GoldenLayoutEditor').PanelType)}
+          onResetLayout={() => glRef.current?.resetLayout()}
           onApplyModePreset={(m: string) => applyModePreset(m as Mode)}
         />
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: '#555', padding: '0 12px' }}>{activeFileName}</span>
-      </div>
-
-      {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', height: 36, flexShrink: 0, background: '#2d2d2d', borderBottom: '1px solid #3e3e3e', padding: '0 10px', gap: 4, position: 'relative', zIndex: 9998 }}>
-        <span style={{ fontSize: 11, color: '#555', marginRight: 2 }}>Layout:</span>
-        {([['split', 'Split', FiLayout, 'Ctrl+3'], ['code', 'Code', FiCode, 'Ctrl+1'], ['visual', 'Visual', FiEye, 'Ctrl+2']] as const).map(([m, label, Icon, sc]) => (
-          <button key={m} title={`${label} layout (${sc})`} onClick={() => applyModePreset(m)}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', background: mode === m ? 'rgba(229,164,90,0.15)' : 'transparent', border: `1px solid ${mode === m ? 'rgba(229,164,90,0.5)' : 'transparent'}`, color: mode === m ? '#e5a45a' : '#888' }}>
-            <Icon size={13} />{label}
+        {/* Quick-access layout buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '0 6px', borderLeft: '1px solid #3e3e3e' }}>
+          {([['split', FiLayout, 'Ctrl+3'], ['code', FiCode, 'Ctrl+1'], ['visual', FiEye, 'Ctrl+2']] as const).map(([m, Icon, sc]) => (
+            <button key={m} title={`${m} layout (${sc})`} onClick={() => applyModePreset(m)}
+              style={{ display: 'flex', alignItems: 'center', padding: '3px 7px', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', background: mode === m ? 'rgba(229,164,90,0.15)' : 'transparent', border: `1px solid ${mode === m ? 'rgba(229,164,90,0.45)' : 'transparent'}`, color: mode === m ? '#e5a45a' : '#666', gap: 4 }}>
+              <Icon size={11} />{m}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '0 6px', borderLeft: '1px solid #3e3e3e' }}>
+          <button title="Refresh Preview (Ctrl+R)" onClick={() => useEditorStore.getState().refreshPreview()}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', background: 'transparent', border: '1px solid transparent', color: '#666' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ccc'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#666'; }}>
+            <FiRefreshCw size={11} />
           </button>
-        ))}
-        <button
-          title="Reset current layout to default (Ctrl+0)"
-          onClick={() => glRef.current?.resetLayout()}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', background: 'transparent', border: '1px solid transparent', color: '#555' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ccc'; (e.currentTarget as HTMLElement).style.borderColor = '#555'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; }}
-        >
-          <FiRotateCcw size={11} /> Reset
-        </button>
-        <div style={{ width: 1, height: 20, background: '#3e3e3e', margin: '0 4px' }} />
-        <ToolbarBtn title="Refresh Preview (Ctrl+R)" icon={<FiRefreshCw size={13} />} label="Refresh" onClick={() => useEditorStore.getState().refreshPreview()} />
-        <ToolbarBtn title="Export ZIP (Ctrl+E)" icon={<FiDownload size={13} />} label="Export" onClick={() => exportProject(files).then(() => showNotification('Exported project.zip'))} />
-
-        <div style={{ flex: 1 }} />
-
-        <span style={{ fontSize: 11, color: '#555' }}>Panels:</span>
-        {PANEL_BTNS.map(({ type, icon, label, title }) => (
-          <button key={type} onClick={() => handlePanelToggle(type)} title={title}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '2px 8px', fontSize: 11, borderRadius: 3,
-              cursor: 'pointer', fontFamily: 'inherit',
-              background: type === 'console' ? 'rgba(100,180,255,0.08)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${type === 'console' ? 'rgba(100,180,255,0.3)' : '#3a3a3a'}`,
-              color: type === 'console' ? '#7ab8f5' : '#888',
-              transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.background = 'rgba(229,164,90,0.12)';
-              el.style.borderColor = 'rgba(229,164,90,0.4)';
-              el.style.color = '#e5a45a';
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.background = type === 'console' ? 'rgba(100,180,255,0.08)' : 'rgba(255,255,255,0.04)';
-              el.style.borderColor = type === 'console' ? 'rgba(100,180,255,0.3)' : '#3a3a3a';
-              el.style.color = type === 'console' ? '#7ab8f5' : '#888';
-            }}
-          >
-            {icon}{label}
+          <button title="Export ZIP (Ctrl+E)" onClick={() => exportProject(files).then(() => showNotification('Exported project.zip'))}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit', background: 'transparent', border: '1px solid transparent', color: '#666' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ccc'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#666'; }}>
+            <FiDownload size={11} />
           </button>
-        ))}
+        </div>
+        <span style={{ fontSize: 11, color: '#555', padding: '0 12px', borderLeft: '1px solid #3e3e3e' }}>{activeFileName}</span>
       </div>
 
       {/* ── Golden Layout Workspace ── */}

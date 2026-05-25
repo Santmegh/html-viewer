@@ -776,7 +776,7 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
   /* ── Empty state ── */
   if (!selectedElement || !selectedSelector) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
         {!hideHeader && (
           <div style={{
             height: 36, flexShrink: 0, display: 'flex', alignItems: 'center',
@@ -814,7 +814,7 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
   const elClass = selectedElement.className?.trim().split(/\s+/)[0] ? `.${selectedElement.className.trim().split(/\s+/)[0]}` : '';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: C.bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden', background: C.bg }}>
 
       {/* ── Header ── */}
       {!hideHeader && (

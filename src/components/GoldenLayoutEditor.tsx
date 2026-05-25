@@ -11,11 +11,11 @@ import PreviewPane from './PreviewPane';
 import VisualEditor from './VisualEditor';
 import PropertiesPanel from './PropertiesPanel';
 import TimelinePanel from './TimelinePanel';
-import ComponentSidebar from './ComponentSidebar';
 import AnimationConfigPanel from './AnimationConfigPanel';
 import ConsolePanel from './ConsolePanel';
+import EventListenersPanel from './EventListenersPanel';
 
-export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'components' | 'console';
+export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console';
 export type Mode = 'code' | 'split' | 'visual';
 
 export interface GoldenLayoutEditorHandle {
@@ -86,7 +86,7 @@ function getVisualLayout(): LayoutConfig {
           type: 'stack', width: 26,
           content: [
             { type: 'component', componentType: 'properties', title: '⊞ Properties' },
-            { type: 'component', componentType: 'components', title: '⊡ Components' },
+            { type: 'component', componentType: 'events', title: '⚡ Events' },
           ],
         },
       ],
@@ -105,7 +105,7 @@ function getLayout(mode: Mode): LayoutConfig {
 const PANEL_TITLES: Record<PanelType, string> = {
   files: '⬡ Explorer', code: '⌨ Code Editor', preview: '◉ Preview',
   properties: '⊞ Properties', timeline: '◷ Timeline',
-  components: '⊡ Components', console: '▶ Console',
+  events: '⚡ Events', console: '▶ Console',
 };
 
 /* ─── Panel Renderer ─── */
@@ -121,8 +121,8 @@ function renderPanelContent(type: PanelType, mode: Mode): React.ReactElement {
       return <PropertiesPanel hideHeader />;
     case 'timeline':
       return <TimelinePanel />;
-    case 'components':
-      return <ComponentSidebar onDragStart={() => {}} />;
+    case 'events':
+      return <EventListenersPanel />;
     case 'console':
       return <ConsolePanel />;
   }
@@ -184,7 +184,7 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       const gl = new GoldenLayout(containerRef.current);
       glRef.current = gl;
 
-      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'components', 'console'];
+      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console'];
       TYPES.forEach(type => {
         gl.registerComponentFactoryFunction(type, (container) => {
           (container as any)._myType = type;
@@ -233,34 +233,39 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       focusOrAddPanel(type: PanelType) {
         const gl = glRef.current;
         if (!gl) return;
-        /* Check if already in layout */
+        /* Check if already in layout — focus it */
         let found = false;
         try {
           gl.getAllContentItems().forEach(item => {
-            if ((item as any).componentType === type) {
+            const ct = (item as any).componentType ?? (item as any)._myType;
+            if (ct === type) {
               found = true;
-              (item as any).parent?.setActiveContentItem?.(item);
+              try { (item as any).parent?.setActiveContentItem?.(item); } catch {}
             }
           });
         } catch {}
-
-        if (!found) {
-          try {
-            /* Add to first stack found */
-            let added = false;
-            gl.getAllContentItems().forEach(item => {
-              if (!added && item.type === 'stack') {
-                (item as any).addChild({ type: 'component', componentType: type, title: PANEL_TITLES[type] });
+        if (found) return;
+        /* Not found — add it to the first available stack, else to root */
+        try {
+          let added = false;
+          gl.getAllContentItems().forEach(item => {
+            if (!added && item.type === 'stack') {
+              try {
+                (item as any).addItem({ type: 'component', componentType: type, title: PANEL_TITLES[type] });
                 added = true;
+              } catch {
+                try {
+                  (item as any).addChild({ type: 'component', componentType: type, title: PANEL_TITLES[type] });
+                  added = true;
+                } catch {}
               }
-            });
-            if (!added) {
-              /* Fallback: add to root */
-              gl.addComponent(type, {}, PANEL_TITLES[type]);
             }
-          } catch (e) {
-            console.warn('focusOrAddPanel failed:', e);
+          });
+          if (!added) {
+            gl.addComponent(type, {}, PANEL_TITLES[type]);
           }
+        } catch (e) {
+          console.warn('focusOrAddPanel failed:', e);
         }
       },
     }));
