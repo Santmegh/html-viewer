@@ -243,17 +243,29 @@ const PreviewPane: React.FC = () => {
     return () => window.removeEventListener('message', handler);
   }, [activePreviewTabId, addConsoleEntry, updatePreviewTab]);
 
+  const lastSrcDocRef = useRef<string>('');
+
   const scheduleRebuild = useCallback((forceRemount = false) => {
     if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current);
     rebuildTimerRef.current = setTimeout(() => {
+      const newDoc = buildSrcDoc();
+      // Strip GSAP preview injection blocks before comparing to avoid spurious rebuilds
+      const strip = (s: string) =>
+        s.replace(/\n?<!-- gsap-(editor|tl)-preview-start -->[\s\S]*?<!-- gsap-(editor|tl)-preview-end -->/g, '');
+      const changed = strip(newDoc) !== strip(lastSrcDocRef.current);
+      const fullChanged = newDoc !== lastSrcDocRef.current;
+      if (!fullChanged && !forceRemount) return;
+      lastSrcDocRef.current = newDoc;
       setLoading(true);
       setFadeIn(false);
-      setCurrentUrl('preview://localhost/');
-      setHistory(['preview://localhost/']);
-      setHistoryIdx(0);
+      if (changed || forceRemount) {
+        setCurrentUrl('preview://localhost/');
+        setHistory(['preview://localhost/']);
+        setHistoryIdx(0);
+      }
       if (forceRemount) setIframeKey(k => k + 1);
-      setSrcDoc(buildSrcDoc());
-    }, 120);
+      setSrcDoc(newDoc);
+    }, 400);
   }, [buildSrcDoc]);
 
   const openInBrowser = useCallback(() => {

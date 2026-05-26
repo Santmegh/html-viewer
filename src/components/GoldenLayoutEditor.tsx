@@ -16,8 +16,11 @@ import AnimConfigSubPanel from './AnimConfigSubPanel';
 import AnimTracksSubPanel from './AnimTracksSubPanel';
 import ConsolePanel from './ConsolePanel';
 import EventListenersPanel from './EventListenersPanel';
+import GSAPEditor from './GSAPEditor';
+import GSAPTimeline from './GSAPTimeline';
+import VantaEditor from './VantaEditor';
 
-export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks';
+export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'gsap-editor' | 'gsap-timeline' | 'vanta-editor';
 export type Mode = 'code' | 'split' | 'visual';
 
 export interface GoldenLayoutEditorHandle {
@@ -117,6 +120,8 @@ const PANEL_TITLES: Record<PanelType, string> = {
   properties: '⊞ Properties', timeline: '◷ Timeline',
   events: '⚡ Events', console: '▶ Console',
   'anim-presets': '✦ Anim Presets', 'anim-config': '⊛ Anim Config', 'anim-tracks': '≋ Anim Tracks',
+  'gsap-editor': '◈ GSAP Editor', 'gsap-timeline': 'G GSAP Timeline',
+  'vanta-editor': '✦ Vanta Effects',
 };
 
 /* ─── Panel Renderer ─── */
@@ -142,6 +147,12 @@ function renderPanelContent(type: PanelType, mode: Mode): React.ReactElement {
       return <AnimConfigSubPanel />;
     case 'anim-tracks':
       return <AnimTracksSubPanel />;
+    case 'gsap-editor':
+      return <GSAPEditor />;
+    case 'gsap-timeline':
+      return <GSAPTimeline />;
+    case 'vanta-editor':
+      return <VantaEditor />;
   }
 }
 
@@ -221,7 +232,7 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       const gl = new GoldenLayout(containerRef.current);
       glRef.current = gl;
 
-      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console', 'anim-presets', 'anim-config', 'anim-tracks'];
+      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console', 'anim-presets', 'anim-config', 'anim-tracks', 'gsap-editor', 'gsap-timeline', 'vanta-editor'];
       TYPES.forEach(type => {
         gl.registerComponentFactoryFunction(type, (container) => {
           (container as any)._myType = type;

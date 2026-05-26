@@ -27,17 +27,20 @@ const WIN_LABELS: Record<WinId, string> = {
   files: 'File Explorer', code: 'Code Editor', preview: 'Preview / Visual Editor',
   properties: 'Properties', timeline: 'Timeline', events: 'Event Listeners',
   'anim-presets': 'Anim Presets', 'anim-config': 'Anim Config', 'anim-tracks': 'Anim Tracks',
+  'gsap-editor': 'GSAP Editor', 'gsap-timeline': 'GSAP Timeline',
+  'vanta-editor': 'Vanta Effects',
 };
 const WIN_ICONS: Record<WinId, string> = {
   files: '📁', code: '</>', preview: '🖥', properties: '⚙', timeline: '⏱', events: '⚡',
   'anim-presets': '✦', 'anim-config': '⊛', 'anim-tracks': '≋',
+  'gsap-editor': '◈', 'gsap-timeline': 'G', 'vanta-editor': '✦',
 };
 
 const MenuBar: React.FC<MenuBarProps> = ({
   wins = [], onToggleWin, onOpenWin, onResetLayout, onApplyModePreset,
 }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { files, mode, showNotification, clearConsole, setPendingFileDialog, updateFileContent, addFolder } = useEditorStore();
+  const { files, mode, showNotification, clearConsole, setPendingFileDialog, updateFileContent, addFolder, clearProject } = useEditorStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -163,6 +166,16 @@ const MenuBar: React.FC<MenuBarProps> = ({
         { label: 'Import Files…', action: () => { document.getElementById('global-file-upload')?.click(); close(); } },
         { separator: true, label: '' },
         { label: 'Export as ZIP', shortcut: 'Ctrl+E', action: () => { exportProject(files); showNotification('Exported as ZIP'); close(); } },
+        { separator: true, label: '' },
+        {
+          label: '🗑 Clear Project', danger: true,
+          action: () => {
+            if (!window.confirm('Delete all project files and start fresh? This keeps empty HTML, CSS, and JS files.')) return;
+            clearProject();
+            showNotification('Project cleared — fresh start!');
+            close();
+          },
+        },
       ],
     },
     {

@@ -189,6 +189,8 @@ interface EditorStore {
   pendingFileDialog: { type: 'create' | 'rename'; fileId?: string } | null;
   setPendingFileDialog: (d: { type: 'create' | 'rename'; fileId?: string } | null) => void;
 
+  clearProject: () => void;
+
   eventBindings: EventBinding[];
   addEventBinding: (b: EventBinding) => void;
   removeEventBinding: (id: string) => void;
@@ -813,6 +815,29 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   pendingFileDialog: null,
   setPendingFileDialog: (d) => set({ pendingFileDialog: d }),
+
+  clearProject: () => set((s) => {
+    const CLEAR_HTML = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>My Page</title>\n  <link rel="stylesheet" href="styles.css">\n</head>\n<body>\n\n  <script src="script.js"><\/script>\n</body>\n</html>`;
+    const coreIds = ['index.html', 'styles.css', 'script.js'];
+    const htmlFile = s.files.find(f => f.type === 'html');
+    const cssFile = s.files.find(f => f.type === 'css');
+    const jsFile = s.files.find(f => f.type === 'js');
+    const newFiles: FileItem[] = [
+      { id: htmlFile?.id ?? 'index.html', name: htmlFile?.name ?? 'index.html', type: 'html', content: CLEAR_HTML },
+      { id: cssFile?.id ?? 'styles.css', name: cssFile?.name ?? 'styles.css', type: 'css', content: '' },
+      { id: jsFile?.id ?? 'script.js', name: jsFile?.name ?? 'script.js', type: 'js', content: '' },
+    ];
+    saveFiles(newFiles);
+    const clearedTimeline: TimelineState = { ...DEFAULT_TIMELINE_STATE };
+    saveTimelineState(clearedTimeline);
+    return {
+      files: newFiles,
+      activeFileId: newFiles[0].id,
+      previewRefreshKey: s.previewRefreshKey + 1,
+      timelineState: clearedTimeline,
+      timelineAnimationStyle: '',
+    };
+  }),
 
   eventBindings: [],
   addEventBinding: (b) => set((s) => ({ eventBindings: [...s.eventBindings, b] })),

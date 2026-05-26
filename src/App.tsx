@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Router as WouterRouter, Route, Switch } from 'wouter';
 
 /* ── Legacy type re-exports (MenuBar still imports these) ── */
-export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'anim-presets' | 'anim-config' | 'anim-tracks';
+export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'gsap-editor' | 'gsap-timeline' | 'vanta-editor';
 export interface WinState {
   id: WinId; title: string; visible: boolean; minimized: boolean;
   docked: boolean; zIndex: number; rect: { x: number; y: number; w: number; h: number };
@@ -226,6 +226,9 @@ function DesktopApp() {
     { type: 'anim-presets', icon: <FiBox size={12} />,      label: 'Presets',      title: 'Anim Presets' },
     { type: 'anim-config',  icon: <FiSliders size={12} />,  label: 'Anim Config',  title: 'Anim Config' },
     { type: 'anim-tracks',  icon: <FiLayout size={12} />,   label: 'Anim Tracks',  title: 'Anim Tracks' },
+    { type: 'gsap-editor',    icon: <FiZap size={12} />,      label: 'GSAP',          title: 'GSAP Editor' },
+    { type: 'gsap-timeline',  icon: <FiClock size={12} />,    label: 'GSAP Timeline', title: 'GSAP Timeline' },
+    { type: 'vanta-editor',   icon: <FiBox size={12} />,      label: 'Vanta',         title: 'Vanta.js Effects' },
   ];
 
   return (
