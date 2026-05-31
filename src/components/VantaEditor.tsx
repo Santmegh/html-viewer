@@ -213,19 +213,28 @@ function buildPreviewDoc(effectId: string, props: Record<string, any>, def: Effe
 ${libScript}
 <script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>
 <script>
-try {
-  VANTA.${effectId}({
-    el: "#vanta",
-    mouseControls: true,
-    touchControls: true,
-    gyroControls: false,
-    minHeight: 200,
-    minWidth: 200,
+(function() {
+  function initVanta() {
+    try {
+      VANTA.${effectId}({
+        el: "#vanta",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200,
+        minWidth: 200,
 ${propsLines}
-  });
-} catch(e) {
-  document.body.innerHTML = '<div style="color:#f87171;font-family:monospace;padding:20px;font-size:12px;">Preview error: ' + e.message + '</div>';
-}
+      });
+    } catch(e) {
+      document.body.innerHTML = '<div style="color:#f87171;font-family:monospace;padding:20px;font-size:12px;">Preview error: ' + e.message + '</div>';
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVanta);
+  } else {
+    initVanta();
+  }
+})();
 </script>
 </body>
 </html>`;
@@ -239,6 +248,19 @@ function generateInitCode(effectId: string, selector: string, props: Record<stri
     return `  ${c.key}: ${val}`;
   });
   return `VANTA.${effectId}({\n  el: "${selector}",\n  mouseControls: true,\n  touchControls: true,\n  gyroControls: false,\n${lines.join(',\n')}\n});`;
+}
+
+function buildInitScript(code: string): string {
+  return `(function() {
+  function initVanta() {
+${code.split('\n').map(line => `    ${line}`).join('\n')}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVanta);
+  } else {
+    initVanta();
+  }
+})();`;
 }
 
 /* ─── Colours ─── */
@@ -298,7 +320,7 @@ const VantaEditor: React.FC = () => {
       const libScript = def.lib === 'p5'
         ? `<script src="${P5_CDN}"></script>`
         : `<script src="${THREE_CDN}"></script>`;
-      const scriptBlock = `${libScript}\n<script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>\n<script>\ndocument.addEventListener('DOMContentLoaded', function() {\n${code}\n});\n</script>`;
+      const scriptBlock = `${libScript}\n<script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>\n<script>\n${buildInitScript(code)}\n</script>`;
       let html = htmlFile.content;
       html = html.replace(/\n?<!-- vanta-preview-start -->[\s\S]*?<!-- vanta-preview-end -->/g, '');
       html = html.replace('</body>', `\n<!-- vanta-preview-start -->\n${scriptBlock}\n<!-- vanta-preview-end -->\n</body>`);
@@ -333,9 +355,10 @@ const VantaEditor: React.FC = () => {
       const existing = jsFile.content;
       const marker = `/* ── Vanta.js`;
       const cut = existing.indexOf('\n\n' + marker);
-      updateFileContent(jsFile.id, cut !== -1 ? existing.slice(0, cut) + block : existing + block);
+      const wrapped = `\n\n/* ── Vanta.js ${effectId} on "${selector}" ── */\n${buildInitScript(code)}`;
+      updateFileContent(jsFile.id, cut !== -1 ? existing.slice(0, cut) + wrapped : existing + wrapped);
     } else {
-      const withScript = html.replace('</body>', `\n<script>\n${code}\n</script>\n</body>`);
+      const withScript = html.replace('</body>', `\n<script>\n${buildInitScript(code)}\n</script>\n</body>`);
       updateFileContent(htmlFile.id, withScript);
     }
     setAppliedMsg(true);
