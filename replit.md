@@ -184,3 +184,67 @@ pnpm run typecheck                   # TypeScript-only check
 - **2026-04-24** — **Visual Editor upgrades**: (1) Inline text editing — double-click any text-only element in the preview to edit its content, with Enter/blur commit and Esc cancel. (2) Animation triggers — each timeline track now supports Load / Hover / Click triggers; hover emits `:hover` keyframes, click uses an injected runtime script that toggles a `__tl-clicked` class with reflow restart. Trigger badge in track row + 3-button selector in track sidebar. (3) +28 new animation presets (glitch, neonFlicker, vibrate, jiggle, marquee, blurIn/Out, doorOpen, pop/popOut, twirl, swing3d, slideInTL/TR/BL/BR, scaleUp/Down, magnetic, expand, reveal, circleReveal, rgbSplit, shimmer) plus a new "Hover FX" category (liftUp, tilt, pressDown, underlineSlide, rotate90, colorPulse). (4) Properties Panel: expanded Flex/Grid section (align-self, align-content, row/col gap, flex grow/shrink/basis, order, grid-auto-flow, grid-column/row, place-items/content) and added new "Accent / Scrollbar / Misc" section (accent-color, color-scheme, scrollbar-width/color, inset, scroll-margin/padding-top, content-visibility, contain, touch-action). (5) Library panel polish: live search input filters presets across all categories.
 - **2026-04-21** — Added `public/ads.txt` (AdSense). Expanded `<meta name="keywords">` with high-intent long-tail terms. Extended FAQ section in `/docs` with 7 additional Q&As (browser support, storage limits, offline, SEO, dark mode, collaboration). Rewrote `replit.md` with full project documentation.
 - **2026-04-17** — Added comprehensive SEO meta tags, JSON-LD graph (WebApplication / WebSite / WebPage / Person / FAQPage), OG + Twitter cards, sitemap.xml, robots.txt, manifest.json, SVG favicon, AI-generated 1200×630 OG image, `/seo` tutorial page, Wouter routing.
+
+
+
+
+
+https://github.com/hxf31891/react-gradient-color-picker
+https://shadergradient.co/
+
+Official package:
+
+npm install shadergradient
+React Example
+import {
+ShaderGradientCanvas,
+ShaderGradient
+} from "shadergradient";
+
+export default function App() {
+return (
+<ShaderGradientCanvas>
+<ShaderGradient control="query" urlString="https://www.shadergradient.co/customize?..." />
+</ShaderGradientCanvas>
+);
+}
+Official Docs
+
+ShaderGradient Docs
+
+Agar React Nahi Hai
+
+To iframe bhi use kar sakte ho 😄
+
+<iframe src="https://www.shadergradient.co/customize?..."> </iframe>
+But React component MUCH better hai.
+
+indono ko bhi implement karo properties bar me and property bar me har ek section ko ek diffrent window bna ke use kar sake
+
+
+Show more
+42 minutes ago
+
+Planning gradient picker integration (46 seconds)
+Big feature set! Let me plan this clearly:
+
+react-gradient-color-picker → replace the current basic ColorInput swatch with a full-featured floating picker that natively handles solid + gradients
+shadergradient → add to Background section as an animated shader gradient option
+Detachable sections → each Section gets a pop-out button that opens it in a draggable floating window via portal
+Let me start by installing the packages and then implementing all three:
+
+
+2 actions
+shadergradient pulled in a blocked lodash version. Let me try them separately:
+
+
+12 actions
+Both packages installed. Let me check the APIs then implement everything in parallel:
+
+
+6 actions
+Let me check shadergradient's peer deps before writing the code:
+
+
+2 actions
+You've reached your daily free quota limit. It will reset at 12:00 AM UTC.

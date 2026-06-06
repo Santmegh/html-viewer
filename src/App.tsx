@@ -56,6 +56,50 @@ const EditorAdBanner: React.FC = () => {
   );
 };
 
+/* ─── Live Server Toggle Button ─── */
+function LiveServerButton() {
+  const { liveServer, setLiveServer, refreshPreview } = useEditorStore();
+  const [pulse, setPulse] = React.useState(false);
+
+  const toggle = () => {
+    const next = !liveServer;
+    setLiveServer(next);
+    if (next) {
+      refreshPreview();
+      setPulse(true);
+      setTimeout(() => setPulse(false), 600);
+    }
+  };
+
+  return (
+    <button
+      title={liveServer ? 'Live Server is ON — preview auto-updates on every change. Click to turn off.' : 'Live Server is OFF — preview is paused. Click to turn on.'}
+      onClick={toggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '0 10px', height: '100%',
+        background: liveServer ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.35)',
+        border: 'none', borderLeft: '1px solid rgba(255,255,255,0.15)',
+        color: '#fff', cursor: 'pointer', fontSize: 11,
+        fontFamily: 'inherit', fontWeight: 600,
+        letterSpacing: '0.04em', transition: 'background 0.15s',
+        flexShrink: 0, whiteSpace: 'nowrap',
+      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,0,0,0.3)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = liveServer ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.35)'; }}
+    >
+      <span style={{
+        width: 7, height: 7, borderRadius: '50%',
+        background: liveServer ? '#4ade80' : '#f87171',
+        display: 'inline-block', flexShrink: 0,
+        boxShadow: liveServer ? `0 0 ${pulse ? '8px' : '5px'} #4ade80` : 'none',
+        transition: 'all 0.2s',
+      }} />
+      {liveServer ? '⚡ Live' : '⏸ Live'}
+    </button>
+  );
+}
+
 /* ─── AI Status Button ─── */
 function AiStatusButton() {
   const [aiState, setAiState] = useState(aiControl.state);
@@ -302,6 +346,7 @@ function DesktopApp() {
         </span>
         <span style={{ padding: '0 10px', borderLeft: '1px solid rgba(255,255,255,0.2)', opacity: 0.8 }}>{files.length} files</span>
         <span style={{ padding: '0 10px', borderLeft: '1px solid rgba(255,255,255,0.2)', opacity: 0.8 }}>UTF-8</span>
+        <LiveServerButton />
         <AiStatusButton />
       </div>
 

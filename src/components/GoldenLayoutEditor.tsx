@@ -2,8 +2,8 @@ import React, {
   useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState,
 } from 'react';
 import * as ReactDOMClient from 'react-dom/client';
-import { GoldenLayout } from 'golden-layout';
-import type { LayoutConfig, ComponentContainer } from 'golden-layout';
+import { GoldenLayout, LayoutConfig } from 'golden-layout';
+import type { ComponentContainer } from 'golden-layout';
 
 import FilePanel from './FilePanel';
 import CodeEditor from './CodeEditor';
@@ -19,8 +19,9 @@ import EventListenersPanel from './EventListenersPanel';
 import GSAPEditor from './GSAPEditor';
 import GSAPTimeline from './GSAPTimeline';
 import VantaEditor from './VantaEditor';
+import { setGlSectionOpener } from '../lib/propSectionBridge';
 
-export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'gsap-editor' | 'gsap-timeline' | 'vanta-editor';
+export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'gsap-editor' | 'gsap-timeline' | 'vanta-editor' | 'prop-section';
 export type Mode = 'code' | 'split' | 'visual';
 
 export interface GoldenLayoutEditorHandle {
@@ -122,6 +123,7 @@ const PANEL_TITLES: Record<PanelType, string> = {
   'anim-presets': '✦ Anim Presets', 'anim-config': '⊛ Anim Config', 'anim-tracks': '≋ Anim Tracks',
   'gsap-editor': '◈ GSAP Editor', 'gsap-timeline': 'G GSAP Timeline',
   'vanta-editor': '✦ Vanta Effects',
+  'prop-section': '⊞ Property Group',
 };
 
 /* ─── Panel Renderer ─── */
@@ -191,6 +193,50 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
 
     useEffect(() => { modeRef.current = mode; }, [mode]);
 
+    /* ── localStorage helpers (GoldenLayout v2 API) — component scope ── */
+    const LS_KEY = useCallback((m: Mode) => `gl-layout-v3-${m}`, []);
+
+    /* GL v2 saveLayout() stores size as { size: 17, sizeUnit: "%" }.
+       loadLayout() needs it as string "17%". This converter fixes that. */
+    const convertResolvedToLayoutConfig = useCallback((node: any): any => {
+      if (!node || typeof node !== 'object') return node;
+      const out: any = {};
+      for (const key of Object.keys(node)) {
+        if (key === 'sizeUnit' || key === 'minSizeUnit') continue; // merged below
+        out[key] = node[key];
+      }
+      /* Merge size + sizeUnit → combined string */
+      if (node.size !== undefined && node.sizeUnit !== undefined) {
+        out.size = String(node.size) + node.sizeUnit;
+      }
+      if (node.minSize !== undefined && node.minSizeUnit !== undefined) {
+        out.minSize = String(node.minSize) + node.minSizeUnit;
+      }
+      /* Recurse into content array and root */
+      if (Array.isArray(out.content)) {
+        out.content = out.content.map(convertResolvedToLayoutConfig);
+      }
+      if (out.root) out.root = convertResolvedToLayoutConfig(out.root);
+      return out;
+    }, []);
+
+    const saveLayoutState = useCallback((gl: GoldenLayout, m: Mode) => {
+      try {
+        const resolved = gl.saveLayout();
+        /* Convert to LayoutConfig-compatible format before saving */
+        const config = convertResolvedToLayoutConfig(resolved);
+        localStorage.setItem(LS_KEY(m), JSON.stringify(config));
+      } catch {}
+    }, [LS_KEY, convertResolvedToLayoutConfig]);
+
+    const loadLayoutState = useCallback((m: Mode): LayoutConfig | null => {
+      try {
+        const raw = localStorage.getItem(LS_KEY(m));
+        if (!raw) return null;
+        return JSON.parse(raw) as LayoutConfig;
+      } catch { return null; }
+    }, [LS_KEY]);
+
     const mountPanel = useCallback((type: PanelType, container: ComponentContainer) => {
       const el = container.element as HTMLElement;
       el.style.cssText = 'height:100%;width:100%;overflow:hidden;position:relative;';
@@ -240,12 +286,70 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
         });
       });
 
+      /* ── prop-section: individual property group opened from Properties panel ── */
+      gl.registerComponentFactoryFunction('prop-section', (container, state) => {
+        const sectionTitle = (state as { sectionTitle?: string })?.sectionTitle || '';
+        (container as any)._myType = 'prop-section';
+        const el = container.element as HTMLElement;
+        el.style.cssText = 'height:100%;width:100%;overflow:auto;position:relative;background:#1a1a1e;';
+        const root = ReactDOMClient.createRoot(el);
+        root.render(<PropertiesPanel hideHeader singleSection={sectionTitle} />);
+        rootsRef.current.set(container, root);
+      });
+
+      /* ── Register bridge so PropertiesPanel sections can open in GL ── */
+      setGlSectionOpener((title: string) => {
+        try {
+          let added = false;
+          gl.getAllContentItems().forEach(item => {
+            if (!added && item.type === 'stack') {
+              try {
+                (item as any).addItem({
+                  type: 'component', componentType: 'prop-section',
+                  componentState: { sectionTitle: title },
+                  title: `⊞ ${title}`,
+                });
+                added = true;
+              } catch {
+                try {
+                  (item as any).addChild({
+                    type: 'component', componentType: 'prop-section',
+                    componentState: { sectionTitle: title },
+                    title: `⊞ ${title}`,
+                  });
+                  added = true;
+                } catch {}
+              }
+            }
+          });
+          if (!added) {
+            gl.addComponent('prop-section', { sectionTitle: title }, `⊞ ${title}`);
+          }
+        } catch (e) {
+          console.warn('openSectionInGL failed:', e);
+        }
+      });
+
+      /* Try loading saved layout from localStorage, fall back to preset */
+      const savedLayout = loadLayoutState(modeRef.current);
       try {
-        gl.loadLayout(getLayout(modeRef.current));
+        gl.loadLayout(savedLayout ?? getLayout(modeRef.current));
       } catch (e) {
-        console.warn('GL loadLayout failed:', e);
-        gl.loadLayout(getSplitLayout());
+        console.warn('GL loadLayout failed, using default:', e);
+        try { gl.loadLayout(getLayout(modeRef.current)); } catch {
+          gl.loadLayout(getSplitLayout());
+        }
       }
+
+      /* Auto-save on every state change (debounced to avoid excessive writes) */
+      let saveTimer: ReturnType<typeof setTimeout> | null = null;
+      const onStateChanged = () => {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveLayoutState(gl, modeRef.current), 300);
+      };
+      try {
+        (gl as any).on('stateChanged', onStateChanged);
+      } catch {}
 
       /* Notify after layout loads */
       setTimeout(() => notifyPanelsChange(), 100);
@@ -263,6 +367,7 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       ro.observe(containerRef.current);
 
       return () => {
+        if (saveTimer) clearTimeout(saveTimer);
         ro.disconnect();
         try { gl.destroy(); } catch {}
         rootsRef.current.forEach(r => { try { r.unmount(); } catch {} });
@@ -274,6 +379,8 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
     /* ── Imperative handle ── */
     useImperativeHandle(ref, () => ({
       resetLayout() {
+        /* Clear saved state so default preset loads on reinit */
+        try { localStorage.removeItem(LS_KEY(modeRef.current)); } catch {}
         setResetKey(k => k + 1);
       },
       addPanel(type: PanelType) {

@@ -196,6 +196,9 @@ interface EditorStore {
   removeEventBinding: (id: string) => void;
   updateEventBinding: (id: string, updates: Partial<EventBinding>) => void;
   setEventBindings: (bindings: EventBinding[]) => void;
+
+  liveServer: boolean;
+  setLiveServer: (v: boolean) => void;
 }
 
 const DEFAULT_HTML = `<!DOCTYPE html>
@@ -846,4 +849,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     eventBindings: s.eventBindings.map(b => b.id === id ? { ...b, ...updates } : b),
   })),
   setEventBindings: (bindings) => set({ eventBindings: bindings }),
+
+  liveServer: true,
+  setLiveServer: (v) => set({ liveServer: v }),
 }));

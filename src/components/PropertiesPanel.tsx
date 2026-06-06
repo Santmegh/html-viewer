@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useDeferredValue, useMemo, useRef } from 'react';
+import { HexColorPicker } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
+import { openSectionInGL } from '../lib/propSectionBridge';
 import {
   FiChevronDown, FiChevronRight, FiType, FiLayout, FiBox,
   FiDroplet, FiSliders, FiZap, FiCode, FiMove, FiMaximize2,
@@ -34,6 +36,9 @@ function injectPropertiesAnimationCssIntoHtml(html: string, css: string) {
 /* ─── Search context ──────────────────────────────────────── */
 const SearchCtx = React.createContext<{ q: string; sectionMatched: boolean }>({ q: '', sectionMatched: false });
 
+/* ─── Single-section mode context ────────────────────────── */
+const SingleSectionCtx = React.createContext<string | null>(null);
+
 function collectChildLabels(children: React.ReactNode, acc: string[] = []): string[] {
   React.Children.forEach(children, child => {
     if (!React.isValidElement(child)) return;
@@ -49,7 +54,11 @@ function collectChildLabels(children: React.ReactNode, acc: string[] = []): stri
 interface SectionProps { title: string; icon?: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; keywords?: string }
 const Section: React.FC<SectionProps> = React.memo(({ title, icon, children, defaultOpen = true, keywords }) => {
   const { q } = useContext(SearchCtx);
+  const singleMode = useContext(SingleSectionCtx);
   const [open, setOpen] = useState(defaultOpen);
+
+  /* In single-section mode hide all sections that don't match */
+  if (singleMode && singleMode !== title) return null;
 
   const { sectionMatched, anyMatch } = useMemo(() => {
     if (!q) return { sectionMatched: false, anyMatch: true };
@@ -61,31 +70,54 @@ const Section: React.FC<SectionProps> = React.memo(({ title, icon, children, def
   }, [q, title, keywords, children]);
 
   if (q && !anyMatch) return null;
-  const effectiveOpen = q ? true : open;
+  /* When in single-section mode or searching, always show content */
+  const effectiveOpen = (q || singleMode) ? true : open;
 
   return (
     <div style={{ borderBottom: `1px solid ${C.border}` }}>
-      <button
-        onClick={() => !q && setOpen(o => !o)}
+      <div
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 5,
-          padding: '5px 8px', cursor: q ? 'default' : 'pointer', border: 'none', outline: 'none',
+          padding: '5px 8px',
           background: effectiveOpen ? C.accentBg : 'transparent',
           transition: 'background 0.15s',
         }}
         onMouseEnter={e => (e.currentTarget.style.background = effectiveOpen ? C.accentBg : 'rgba(255,255,255,0.05)')}
         onMouseLeave={e => (e.currentTarget.style.background = effectiveOpen ? C.accentBg : 'transparent')}
       >
-        {icon && <span style={{ color: effectiveOpen ? C.accent : C.muted, display: 'flex', transition: 'color 0.15s' }}>{icon}</span>}
-        <span style={{
-          flex: 1, textAlign: 'left', fontSize: 9, fontWeight: 600,
-          letterSpacing: '0.06em', textTransform: 'uppercase',
-          color: effectiveOpen ? C.text : C.muted,
-        }}>{title}</span>
-        <span style={{ color: C.dim, display: 'flex' }}>
-          {effectiveOpen ? <FiChevronDown size={10} /> : <FiChevronRight size={10} />}
-        </span>
-      </button>
+        <button
+          onClick={() => !q && !singleMode && setOpen(o => !o)}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, background: 'none', border: 'none', cursor: (q || singleMode) ? 'default' : 'pointer', outline: 'none', padding: 0, minWidth: 0 }}
+        >
+          {icon && <span style={{ color: effectiveOpen ? C.accent : C.muted, display: 'flex', transition: 'color 0.15s' }}>{icon}</span>}
+          <span style={{
+            flex: 1, textAlign: 'left', fontSize: 9, fontWeight: 600,
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+            color: effectiveOpen ? C.text : C.muted,
+          }}>{title}</span>
+          {!singleMode && (
+            <span style={{ color: C.dim, display: 'flex', paddingRight: 4 }}>
+              {effectiveOpen ? <FiChevronDown size={10} /> : <FiChevronRight size={10} />}
+            </span>
+          )}
+        </button>
+        {/* Open as docked GL panel — only shown when NOT already in single-section mode */}
+        {!singleMode && (
+          <button
+            onClick={e => { e.stopPropagation(); openSectionInGL(title); }}
+            title="Open in docked panel"
+            style={{
+              flexShrink: 0, background: 'none',
+              border: '1px solid transparent',
+              borderRadius: 3, color: C.dim,
+              cursor: 'pointer', padding: '1px 5px', fontSize: 11, lineHeight: 1,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = C.accent; (e.currentTarget as HTMLButtonElement).style.borderColor = C.accentBrd; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = C.dim; (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; }}
+          >↗</button>
+        )}
+      </div>
       {effectiveOpen && (
         <SearchCtx.Provider value={{ q, sectionMatched }}>
           <div style={{ padding: '6px 8px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -182,55 +214,87 @@ function ColorInput({
   gradientValue?: string;
 }) {
   const [text, setText] = useState(value);
+  const [openPicker, setOpenPicker] = useState(false);
   const [openGrad, setOpenGrad] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => setText(value), [value]);
+  const textFocusedRef = useRef(false);
+  /* Only reset text when the field isn't being edited */
+  useEffect(() => { if (!textFocusedRef.current) setText(value); }, [value]);
   const hex = /^#[0-9a-fA-F]{3,8}$/.test(value) ? value : '#000000';
   const gradActive = !!gradientValue && /gradient\s*\(/i.test(gradientValue);
 
   useEffect(() => {
-    if (!openGrad) return;
+    if (!openPicker && !openGrad) return;
     const onDocDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpenGrad(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpenPicker(false);
+        setOpenGrad(false);
+      }
     };
     document.addEventListener('mousedown', onDocDown);
     return () => document.removeEventListener('mousedown', onDocDown);
-  }, [openGrad]);
+  }, [openPicker, openGrad]);
 
   return (
     <div ref={wrapRef} style={{ display: 'flex', gap: 5, flex: 1, alignItems: 'center', position: 'relative' }}>
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: 4, border: `1px solid ${C.border}`,
-          background: value || '#000', cursor: 'pointer', overflow: 'hidden',
-        }}>
+      <div
+        onClick={() => { setOpenPicker(o => !o); setOpenGrad(false); }}
+        title="Pick color"
+        style={{
+          width: 26, height: 26, borderRadius: 4,
+          border: `2px solid ${openPicker ? C.accentBrd : C.border}`,
+          background: value || '#000', cursor: 'pointer', flexShrink: 0,
+          transition: 'border-color 0.15s',
+        }}
+      />
+      {openPicker && (
+        <div
+          style={{
+            position: 'absolute', top: 32, left: 0, zIndex: 9999,
+            background: '#1a1a1e', border: `1px solid ${C.border}`,
+            borderRadius: 8, boxShadow: '0 12px 28px rgba(0,0,0,0.65)', padding: 10,
+          }}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <HexColorPicker color={hex} onChange={v => { onChange(v); setText(v); }} style={{ width: 200 }} />
           <input
-            type="color" value={hex}
-            onChange={e => { onChange(e.target.value); setText(e.target.value); }}
-            style={{ width: 40, height: 40, opacity: 0, cursor: 'pointer', position: 'absolute', top: -4, left: -4 }}
+            value={text}
+            onChange={e => { setText(e.target.value); if (/^#[0-9a-fA-F]{3,8}$/.test(e.target.value)) onChange(e.target.value); }}
+            style={{ ...inputBase, marginTop: 8, width: '100%', boxSizing: 'border-box' as const }}
+            placeholder="#000000"
           />
+          <button
+            onClick={() => setOpenPicker(false)}
+            style={{ marginTop: 6, width: '100%', padding: '4px', fontSize: 10, background: C.accentBg, border: `1px solid ${C.accentBrd}`, color: C.accent, borderRadius: 4, cursor: 'pointer' }}
+          >Done</button>
         </div>
-      </div>
+      )}
       <input
         style={inputBase} value={text}
         onChange={e => setText(e.target.value)}
-        onBlur={() => onChange(text)}
-        onKeyDown={e => e.key === 'Enter' && onChange(text)}
+        onFocus={e => { textFocusedRef.current = true; e.target.style.borderColor = C.accentBrd; }}
+        onBlur={e => {
+          textFocusedRef.current = false;
+          e.target.style.borderColor = C.border;
+          onChange(text);
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { (e.currentTarget as HTMLInputElement).blur(); onChange(text); }
+          if (e.key === 'Escape') { setText(value); (e.currentTarget as HTMLInputElement).blur(); }
+        }}
         placeholder="#000000 or rgba(...)"
-        onFocus={e => (e.target.style.borderColor = C.accentBrd)}
-        onBlurCapture={e => (e.target.style.borderColor = C.border)}
       />
       {onGradient && (
         <button
-          onClick={() => setOpenGrad(o => !o)}
-          title="Gradient"
+          onClick={() => { setOpenGrad(o => !o); setOpenPicker(false); }}
+          title="CSS Gradient"
           style={{
             flexShrink: 0,
             width: 26, height: 26, borderRadius: 4, cursor: 'pointer',
             background: gradActive
               ? (gradientValue && /gradient/i.test(gradientValue) ? gradientValue : 'linear-gradient(135deg,#ff7a18,#af002d)')
               : 'linear-gradient(135deg,#ff7a18,#af002d)',
-            border: `1px solid ${openGrad || gradActive ? C.accentBrd : C.border}`,
+            border: `2px solid ${openGrad || gradActive ? C.accentBrd : C.border}`,
             color: '#fff', fontSize: 10, fontWeight: 700,
             textShadow: '0 1px 2px rgba(0,0,0,0.5)',
           }}
@@ -239,7 +303,7 @@ function ColorInput({
       {openGrad && onGradient && (
         <div
           style={{
-            position: 'absolute', top: 32, right: 0, zIndex: 50,
+            position: 'absolute', top: 32, right: 0, zIndex: 9999,
             width: 240, background: '#1f1f1f', border: `1px solid ${C.border}`,
             borderRadius: 6, boxShadow: '0 12px 28px rgba(0,0,0,0.55)', padding: 8,
           }}
@@ -268,16 +332,26 @@ function ColorInput({
 /* ─── PropInput ───────────────────────────────────────────── */
 function PropInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   const [local, setLocal] = useState(value);
-  useEffect(() => setLocal(value), [value]);
+  const focusedRef = useRef(false);
+  /* Only reset local value when the element selection changes, not on every style update */
+  useEffect(() => {
+    if (!focusedRef.current) setLocal(value);
+  }, [value]);
   return (
     <input
       style={inputBase} value={local}
       onChange={e => setLocal(e.target.value)}
-      onBlur={() => onChange(local)}
-      onKeyDown={e => e.key === 'Enter' && onChange(local)}
+      onFocus={e => { focusedRef.current = true; e.target.style.borderColor = C.accentBrd; }}
+      onBlur={e => {
+        focusedRef.current = false;
+        e.target.style.borderColor = C.border;
+        onChange(local);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { (e.currentTarget as HTMLInputElement).blur(); onChange(local); }
+        if (e.key === 'Escape') { setLocal(value); (e.currentTarget as HTMLInputElement).blur(); }
+      }}
       placeholder={placeholder}
-      onFocus={e => (e.target.style.borderColor = C.accentBrd)}
-      onBlurCapture={e => (e.target.style.borderColor = C.border)}
     />
   );
 }
@@ -425,6 +499,233 @@ function GradientControls({ value, onChange }: { value: string; onChange: (v: st
     </div>
   );
 }
+
+/* ─── ShaderGradient Picker ────────────────────────────────── */
+const SHADER_PRESETS = [
+  { name: 'Aurora',  color1: '#5606FF', color2: '#FE8989', color3: '#000000', type: 'waterPlane', uSpeed: '0.3', envPreset: 'city'   },
+  { name: 'Sunset',  color1: '#ff9a00', color2: '#ee0979', color3: '#ff6a00', type: 'waterPlane', uSpeed: '0.2', envPreset: 'sunset' },
+  { name: 'Ocean',   color1: '#00c6ff', color2: '#0072ff', color3: '#001f5b', type: 'waterPlane', uSpeed: '0.4', envPreset: 'lobby'  },
+  { name: 'Cosmos',  color1: '#8e2de2', color2: '#4a00e0', color3: '#0d0029', type: 'sphere',     uSpeed: '0.1', envPreset: 'city'   },
+  { name: 'Fire',    color1: '#f9d423', color2: '#ff4e50', color3: '#2c0000', type: 'waterPlane', uSpeed: '0.5', envPreset: 'sunset' },
+  { name: 'Mint',    color1: '#00f260', color2: '#0575e6', color3: '#003322', type: 'plane',      uSpeed: '0.2', envPreset: 'lobby'  },
+] as const;
+
+type ShaderPreset = typeof SHADER_PRESETS[number];
+
+function buildShaderBaseParams(p: ShaderPreset) {
+  return {
+    animate: 'on', axesHelper: 'off',
+    bgColor1: '#000000', bgColor2: '#000000', brightness: '1.2',
+    cAzimuthAngle: '180', cDistance: '2.8', cPolarAngle: '80', cameraZoom: '9.1',
+    color1: p.color1, color2: p.color2, color3: p.color3,
+    destination: 'onCanvas', envPreset: p.envPreset,
+    fov: '45', frameRate: '10', grain: 'on', lightType: '3d', pixelDensity: '1',
+    positionX: '-1.4', positionY: '0', positionZ: '0',
+    range: 'enabled', rangeEnd: '40', rangeStart: '0', reflection: '0.1',
+    rotationX: '0', rotationY: '10', rotationZ: '50', shader: 'defaults',
+    type: p.type, uAmplitude: '0', uDensity: '1.5', uFrequency: '0',
+    uSpeed: p.uSpeed, uStrength: '1.5', uTime: '8', wireframe: 'false',
+  };
+}
+
+/* Preview URL: embedMode off → shadergradient.co shows full customize UI with controls */
+function buildShaderPreviewUrl(p: ShaderPreset) {
+  const params = new URLSearchParams({ ...buildShaderBaseParams(p), embedMode: 'off' });
+  return `https://www.shadergradient.co/customize?${params.toString()}`;
+}
+
+/* Embed URL: embedMode on → only the gradient canvas, no UI controls (used when injecting into HTML) */
+function buildShaderEmbedUrl(p: ShaderPreset) {
+  const params = new URLSearchParams({ ...buildShaderBaseParams(p), embedMode: 'on' });
+  return `https://www.shadergradient.co/customize?${params.toString()}`;
+}
+
+/* Parse a shadergradient URL to find the matching preset (fallback: index 0) */
+function presetIndexFromUrl(url: string): number {
+  try {
+    const params = new URLSearchParams(url.includes('?') ? url.split('?')[1] : url);
+    const c1 = params.get('color1') || '';
+    const idx = SHADER_PRESETS.findIndex(p => p.color1.toLowerCase() === c1.toLowerCase());
+    return idx >= 0 ? idx : 0;
+  } catch { return 0; }
+}
+
+function injectShaderToElement(html: string, selector: string, iframeUrl: string): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    doc.querySelectorAll('.sg-overlay').forEach(el => el.remove());
+    const target = selector === 'body' ? doc.body : doc.querySelector(selector);
+    if (!target) return html;
+    if (target !== doc.body && (!target.getAttribute('style') || !(target.getAttribute('style') || '').includes('position'))) {
+      const existing = target.getAttribute('style') || '';
+      target.setAttribute('style', (existing ? existing + ';' : '') + 'position:relative');
+    }
+    const overlay = doc.createElement('div');
+    overlay.className = 'sg-overlay';
+    overlay.setAttribute('style', 'position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden;');
+    const iframe = doc.createElement('iframe');
+    iframe.src = iframeUrl;
+    iframe.setAttribute('style', 'width:100%;height:100%;border:0;');
+    iframe.setAttribute('title', 'ShaderGradient');
+    overlay.appendChild(iframe);
+    target.insertBefore(overlay, target.firstChild);
+    return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+  } catch {
+    return html;
+  }
+}
+
+const ShaderGradientSection: React.FC = () => {
+  const { selectedSelector, files, updateFileContent, showNotification, applySelectedStyle } = useEditorStore();
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [applied, setApplied] = useState<{ idx: number; selector: string } | null>(null);
+  const [customUrl, setCustomUrl] = useState('');
+  const [iframeKey, setIframeKey] = useState(0);
+
+  useEffect(() => { setApplied(null); }, [selectedSelector]);
+
+  /* The preview iframe shows shadergradient's own customize UI (with interactive controls) */
+  const previewUrl = buildShaderPreviewUrl(SHADER_PRESETS[selectedIdx]);
+
+  const doInject = (embedUrl: string, presetName: string, idx: number) => {
+    const htmlFile = files.find(f => f.type === 'html');
+    if (!htmlFile) { showNotification('No HTML file found'); return; }
+    let newContent: string;
+    const sel = selectedSelector;
+    if (sel && sel !== 'html') {
+      newContent = injectShaderToElement(htmlFile.content, sel, embedUrl);
+      if (sel !== 'body') applySelectedStyle('position', 'relative');
+    } else {
+      const snippet = `<!-- sg-bg --><div class="sg-overlay" style="position:fixed;inset:0;z-index:-9999;pointer-events:none;overflow:hidden;"><iframe src="${embedUrl}" style="width:100%;height:100%;border:0;" title="ShaderGradient"></iframe></div>`;
+      const cleaned = htmlFile.content.replace(/<!-- sg-bg --><div class="sg-overlay"[\s\S]*?<\/div>/g, '');
+      newContent = cleaned.includes('</body>') ? cleaned.replace('</body>', `${snippet}\n</body>`) : cleaned + snippet;
+    }
+    updateFileContent(htmlFile.id, newContent);
+    setApplied({ idx, selector: sel || 'page' });
+    showNotification(`⬡ ${presetName}${sel ? ` → ${sel}` : ' → page'} applied!`);
+  };
+
+  const applyPreset = (idx: number) => {
+    setSelectedIdx(idx);
+    setIframeKey(k => k + 1);
+    /* Use embed URL (embedMode: on) for injection → no controls shown in the element */
+    doInject(buildShaderEmbedUrl(SHADER_PRESETS[idx]), SHADER_PRESETS[idx].name, idx);
+  };
+
+  const applyCustomUrl = () => {
+    if (!customUrl.trim()) return;
+    /* Convert a copied customize URL to embed by setting embedMode=on */
+    try {
+      const base = customUrl.includes('?') ? customUrl.split('?')[0] : 'https://www.shadergradient.co/customize';
+      const qStr = customUrl.includes('?') ? customUrl.split('?')[1] : '';
+      const params = new URLSearchParams(qStr);
+      params.set('embedMode', 'on');
+      const embedUrl = `${base}?${params.toString()}`;
+      const idx = presetIndexFromUrl(customUrl);
+      doInject(embedUrl, 'Custom', idx);
+    } catch { showNotification('Invalid URL'); }
+  };
+
+  const removeShader = () => {
+    const htmlFile = files.find(f => f.type === 'html');
+    if (!htmlFile) return;
+    const cleaned = htmlFile.content
+      .replace(/<!-- sg-bg --><div class="sg-overlay"[\s\S]*?<\/div>/g, '')
+      .replace(/<div class="sg-overlay"[\s\S]*?<\/div>/g, '');
+    updateFileContent(htmlFile.id, cleaned);
+    setApplied(null);
+    showNotification('ShaderGradient removed');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* Target element indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 7px', background: C.surface2, borderRadius: 5, fontSize: 9 }}>
+        <span style={{ color: C.accent, fontSize: 13 }}>⬡</span>
+        <span style={{ flex: 1, color: selectedSelector ? C.text : C.dim, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: selectedSelector ? 600 : 400 }}>
+          {selectedSelector || 'no element selected'}
+        </span>
+        <span style={{ color: C.dim, flexShrink: 0 }}>{selectedSelector ? '← target' : '→ page bg'}</span>
+      </div>
+
+      {/* Editable preview iframe — shows shadergradient.co customize UI with interactive controls */}
+      <div style={{ borderRadius: 7, overflow: 'hidden', border: `2px solid ${applied ? C.accentBrd : C.border}`, position: 'relative', background: '#000', transition: 'border-color 0.25s', height: 320 }}>
+        <iframe
+          key={`${iframeKey}-${selectedIdx}`}
+          src={previewUrl}
+          style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+          title="ShaderGradient Preview"
+          allow="cross-origin-isolated"
+        />
+        {applied && (
+          <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 9, background: 'rgba(0,0,0,0.78)', color: C.accent, padding: '2px 8px', borderRadius: 10, backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
+            ✓ {SHADER_PRESETS[applied.idx]?.name ?? 'Custom'} applied
+          </div>
+        )}
+      </div>
+
+      {/* Preset quick-apply buttons */}
+      <div style={{ fontSize: 9, color: C.dim, marginTop: 2, marginBottom: 1 }}>Quick presets — click to preview & apply</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+        {SHADER_PRESETS.map((p, i) => {
+          const isActive = applied?.idx === i;
+          const isSelected = selectedIdx === i;
+          return (
+            <button
+              key={p.name}
+              onClick={() => applyPreset(i)}
+              title={`Preview & apply ${p.name}`}
+              style={{
+                height: 34, borderRadius: 5,
+                border: `2px solid ${isActive ? C.accentBrd : isSelected ? 'rgba(255,255,255,0.35)' : C.border}`,
+                background: `linear-gradient(135deg, ${p.color1}, ${p.color2})`,
+                cursor: 'pointer', fontSize: 9, color: '#fff', fontWeight: 700,
+                textShadow: '0 1px 3px rgba(0,0,0,0.85)',
+                transition: 'all 0.12s',
+                boxShadow: isActive ? `0 0 10px ${p.color1}99` : 'none',
+              }}
+            >
+              {isActive ? '✓ ' : ''}{p.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Custom URL input — paste a URL copied from shadergradient.co */}
+      <div style={{ fontSize: 9, color: C.dim, marginTop: 2, marginBottom: 1 }}>Or paste a custom URL from shadergradient.co</div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input
+          value={customUrl}
+          onChange={e => setCustomUrl(e.target.value)}
+          placeholder="https://www.shadergradient.co/customize?..."
+          style={{ ...inputBase, flex: 1, fontSize: 9 } as React.CSSProperties}
+        />
+        <button
+          onClick={applyCustomUrl}
+          disabled={!customUrl.trim()}
+          style={{ padding: '3px 8px', fontSize: 9, background: C.accentBg, border: `1px solid ${C.accentBrd}`, color: C.accent, borderRadius: 4, cursor: customUrl.trim() ? 'pointer' : 'not-allowed', opacity: customUrl.trim() ? 1 : 0.5, flexShrink: 0 }}
+        >Apply URL</button>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 4 }}>
+        {applied && (
+          <button onClick={removeShader} style={{ flex: 1, padding: '4px', fontSize: 10, background: C.surface2, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 4, cursor: 'pointer' }}>
+            ✕ Remove
+          </button>
+        )}
+        <a
+          href="https://www.shadergradient.co/customize"
+          target="_blank" rel="noreferrer"
+          style={{ flex: 1, padding: '4px 8px', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, background: C.surface2, border: `1px solid ${C.border}`, color: C.muted, borderRadius: 4, textDecoration: 'none', whiteSpace: 'nowrap', cursor: 'pointer' }}
+        >
+          Open Full Editor ↗
+        </a>
+      </div>
+    </div>
+  );
+};
 
 /* ─── FilterControls (filter / backdrop-filter builder) ── */
 const FILTER_FUNCS: { key: string; label: string; unit: string; min: number; max: number; step: number; def: number }[] = [
@@ -651,7 +952,7 @@ function PseudoStateSelector({ value, onChange }: { value: string; onChange: (v:
 }
 
 /* ─── Main component ──────────────────────────────────────── */
-const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ hideHeader }) => {
+const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean; singleSection?: string }> = ({ hideHeader, singleSection }) => {
   const {
     selectedElement,
     selectedSelector,
@@ -662,6 +963,7 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
     files,
     updateFileContent,
     setTimelineState,
+    showNotification,
   } = useEditorStore();
 
   const pseudoState = useEditorStore(s => s.pseudoState);
@@ -674,7 +976,8 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
     setPseudoStyles(visualBridge.collectPseudoStyles(pseudoState));
   }, [pseudoState, selectedSelector, visualBridge]);
 
-  const apply = (property: string, value: string) => {
+  /* Stable apply — wrapped in useCallback so applyTransform doesn't recreate every render */
+  const apply = useCallback((property: string, value: string) => {
     applySelectedStyle(property, value);
     if (pseudoState) {
       setPseudoStyles(prev => {
@@ -684,7 +987,9 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
         return next;
       });
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applySelectedStyle, pseudoState]);
+
   const getS = (key: string) => {
     if (pseudoState) return pseudoStyles[key.toLowerCase()] || '';
     return selectedElement?.styles?.[key] || '';
@@ -695,6 +1000,8 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
   const [scaleX, setScaleX] = useState(1);
   const [scaleY, setScaleY] = useState(1);
   const [searchQ, setSearchQ] = useState('');
+  /* Defer the search query so typing stays fast and sections filter at lower priority */
+  const deferredSearchQ = useDeferredValue(searchQ.trim());
 
   useEffect(() => {
     setContentDraft(selectedElement?.innerHTML || '');
@@ -843,35 +1150,37 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
         </div>
       )}
 
-      {/* ── Property search + pseudo-state selector ── */}
-      <div style={{
-        flexShrink: 0, padding: '6px 8px', background: C.surface,
-        borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 4, alignItems: 'center',
-      }}>
-        <input
-          value={searchQ}
-          onChange={e => setSearchQ(e.target.value)}
-          placeholder="Search properties…"
-          style={{
-            flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
-            borderRadius: 4, padding: '4px 9px', fontSize: 11, color: C.text, outline: 'none',
-            minWidth: 0,
-          }}
-          onFocus={e => (e.target.style.borderColor = C.accentBrd)}
-          onBlur={e => (e.target.style.borderColor = C.border)}
-        />
-        {searchQ && (
-          <button
-            onClick={() => setSearchQ('')}
-            title="Clear search"
+      {/* ── Property search + pseudo-state selector (hidden in single-section mode) ── */}
+      {!singleSection && (
+        <div style={{
+          flexShrink: 0, padding: '6px 8px', background: C.surface,
+          borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 4, alignItems: 'center',
+        }}>
+          <input
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="Search properties…"
             style={{
-              background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 4,
-              color: C.muted, cursor: 'pointer', padding: '3px 8px', fontSize: 11, flexShrink: 0,
+              flex: 1, background: C.surface2, border: `1px solid ${C.border}`,
+              borderRadius: 4, padding: '4px 9px', fontSize: 11, color: C.text, outline: 'none',
+              minWidth: 0,
             }}
-          >×</button>
-        )}
-        <PseudoStateSelector value={pseudoState} onChange={setPseudoState} />
-      </div>
+            onFocus={e => (e.target.style.borderColor = C.accentBrd)}
+            onBlur={e => (e.target.style.borderColor = C.border)}
+          />
+          {searchQ && (
+            <button
+              onClick={() => setSearchQ('')}
+              title="Clear search"
+              style={{
+                background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 4,
+                color: C.muted, cursor: 'pointer', padding: '3px 8px', fontSize: 11, flexShrink: 0,
+              }}
+            >×</button>
+          )}
+          <PseudoStateSelector value={pseudoState} onChange={setPseudoState} />
+        </div>
+      )}
 
       {/* ── Pseudo-state mode banner ── */}
       {pseudoState && (
@@ -888,7 +1197,8 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
       )}
 
       {/* ── Scrollable body ── */}
-      <SearchCtx.Provider value={{ q: searchQ.trim(), sectionMatched: false }}>
+      <SingleSectionCtx.Provider value={singleSection || null}>
+      <SearchCtx.Provider value={{ q: singleSection ? '' : deferredSearchQ, sectionMatched: false }}>
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
         {/* Content */}
@@ -907,6 +1217,11 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
           <Row label="Text">
             <PropInput value={selectedElement.textContent} placeholder="Plain text" onChange={v => applySelectedContent(v)} />
           </Row>
+        </Section>
+
+        {/* ── Shader Gradient ── */}
+        <Section title="Shader Gradient" icon={<span style={{ fontSize: 13 }}>⬡</span>} keywords="shader gradient animated background webgl" defaultOpen={false}>
+          <ShaderGradientSection />
         </Section>
 
         {/* Typography */}
@@ -1786,6 +2101,7 @@ const PropertiesPanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> 
 
       </div>
       </SearchCtx.Provider>
+      </SingleSectionCtx.Provider>
     </div>
   );
 };

@@ -13,6 +13,7 @@ const PreviewPane: React.FC = () => {
     previewTabs, activePreviewTabId, addPreviewTab, closePreviewTab,
     setActivePreviewTab, updatePreviewTab,
     timelineAnimationStyle,
+    liveServer,
   } = useEditorStore();
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -279,11 +280,12 @@ const PreviewPane: React.FC = () => {
   // Rebuild srcdoc on file changes or explicit refresh
   useEffect(() => {
     if (activeTab?.previewType === 'image') return;
+    if (!liveServer) return;
     scheduleRebuild(false);
     return () => {
       if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current);
     };
-  }, [activeTab?.previewType, scheduleRebuild]);
+  }, [activeTab?.previewType, scheduleRebuild, liveServer]);
 
   // Force full remount on explicit refresh
   useEffect(() => {

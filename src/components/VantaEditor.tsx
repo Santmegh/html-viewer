@@ -404,10 +404,10 @@ const VantaEditor: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Live Preview ── */}
-        <div style={{ flexShrink: 0, height: 180, position: 'relative', background: '#0a0a0c', borderBottom: `1px solid ${BORDER}` }}>
+        {/* ── Live Preview (fills available space) ── */}
+        <div style={{ flex: 1, position: 'relative', background: '#0a0a0c', borderBottom: `1px solid ${BORDER}`, minHeight: 120 }}>
           {previewSrc && (
             <iframe
               key={previewKey}
@@ -438,33 +438,13 @@ const VantaEditor: React.FC = () => {
             style={{ position: 'absolute', bottom: 6, right: 50, background: `rgba(168,85,247,0.15)`, border: `1px solid ${ACCENT}55`, borderRadius: 4, cursor: 'pointer', color: ACCENT, padding: '2px 7px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}>
             <FiExternalLink size={8} /> In Page
           </button>
+          {/* Effect label bottom-left */}
+          <div style={{ position: 'absolute', bottom: 6, left: 8, pointerEvents: 'none' }}>
+            <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 3, background: 'rgba(0,0,0,0.6)', color: ACCENT, fontWeight: 600 }}>{def.emoji} {def.label}</span>
+          </div>
         </div>
 
-        <div style={{ padding: '10px 10px 0', flex: 1 }}>
-
-          {/* ── Effect Picker ── */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Effect — {def.emoji} {def.label}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-              {EFFECTS.map(e => (
-                <button key={e.id} onClick={() => setEffectId(e.id)} title={e.desc}
-                  style={{
-                    padding: '5px 2px', textAlign: 'center',
-                    background: effectId === e.id ? `linear-gradient(135deg,${ACCENT}33,${ACCENT2}22)` : '#1a1a1c',
-                    border: `1px solid ${effectId === e.id ? ACCENT + 'aa' : BORDER}`,
-                    borderRadius: 5, cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    transition: 'all 0.12s',
-                  }}
-                  onMouseEnter={e2 => { if (effectId !== e.id) (e2.currentTarget as HTMLElement).style.borderColor = ACCENT + '55'; }}
-                  onMouseLeave={e2 => { if (effectId !== e.id) (e2.currentTarget as HTMLElement).style.borderColor = BORDER; }}>
-                  <span style={{ fontSize: 12 }}>{e.emoji}</span>
-                  <span style={{ fontSize: 8, color: effectId === e.id ? ACCENT : '#666', fontWeight: 600, letterSpacing: '0.02em' }}>{e.label}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 9, color: '#555', marginTop: 4 }}>{def.desc}</div>
-          </div>
+        <div style={{ padding: '10px 10px 0', overflowY: 'auto', flexShrink: 0, maxHeight: '55%' }}>
 
           {/* ── Target Selector ── */}
           <div style={{ marginBottom: 10, position: 'relative' }}>
@@ -588,25 +568,52 @@ const VantaEditor: React.FC = () => {
       </div>
 
       {/* ── Footer ── */}
-      <div style={{ padding: '8px 10px', flexShrink: 0, background: HDR, borderTop: `1px solid ${BORDER}`, display: 'flex', gap: 6, alignItems: 'center' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 9, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {def.emoji} <span style={{ color: ACCENT }}>{def.label}</span> → <span style={{ color: '#e5a45a', fontFamily: 'monospace' }}>{selector}</span>
+      <div style={{ padding: '8px 10px', flexShrink: 0, background: HDR, borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {def.emoji} <span style={{ color: ACCENT }}>{def.label}</span> → <span style={{ color: '#e5a45a', fontFamily: 'monospace' }}>{selector}</span>
+            </div>
           </div>
+          <button onClick={applyToProject}
+            style={{
+              padding: '6px 14px', flexShrink: 0,
+              background: appliedMsg ? 'rgba(78,201,176,0.12)' : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
+              border: appliedMsg ? '1px solid rgba(78,201,176,0.35)' : '1px solid transparent',
+              borderRadius: 5, cursor: 'pointer',
+              color: appliedMsg ? '#4ec9b0' : '#fff',
+              fontSize: 11, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 5,
+              transition: 'all 0.2s',
+            }}>
+            {appliedMsg ? <><FiCheck size={11} /> Applied!</> : <><FiZap size={11} /> Apply to Project</>}
+          </button>
         </div>
-        <button onClick={applyToProject}
-          style={{
-            padding: '6px 14px', flexShrink: 0,
-            background: appliedMsg ? 'rgba(78,201,176,0.12)' : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
-            border: appliedMsg ? '1px solid rgba(78,201,176,0.35)' : '1px solid transparent',
-            borderRadius: 5, cursor: 'pointer',
-            color: appliedMsg ? '#4ec9b0' : '#fff',
-            fontSize: 11, fontWeight: 700,
-            display: 'flex', alignItems: 'center', gap: 5,
-            transition: 'all 0.2s',
-          }}>
-          {appliedMsg ? <><FiCheck size={11} /> Applied!</> : <><FiZap size={11} /> Apply to Project</>}
-        </button>
+        {selectedSelector && (
+          <button
+            onClick={() => {
+              setSelector(selectedSelector);
+              setTimeout(() => applyToProject(), 0);
+            }}
+            title={`Apply ${def.label} effect directly to selected element: ${selectedSelector}`}
+            style={{
+              width: '100%', padding: '6px 10px',
+              background: 'rgba(168,85,247,0.08)',
+              border: `1px solid ${ACCENT}55`,
+              borderRadius: 5, cursor: 'pointer',
+              color: ACCENT, fontSize: 11, fontWeight: 600,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(168,85,247,0.18)`; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(168,85,247,0.08)`; }}>
+            <FiZap size={11} />
+            Apply to Selected Element
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#e5a45a', background: 'rgba(229,164,90,0.1)', padding: '1px 5px', borderRadius: 3, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedSelector}
+            </span>
+          </button>
+        )}
       </div>
 
     </div>
