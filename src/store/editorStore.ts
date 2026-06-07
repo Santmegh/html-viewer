@@ -44,6 +44,7 @@ export interface AnimationConfig {
 }
 
 export type Mode = 'code' | 'visual' | 'split';
+export type VisualPreviewDevice = 'desktop' | 'tablet' | 'mobile' | 'custom';
 
 export interface PanelConfig {
   filePanel: boolean;
@@ -143,6 +144,9 @@ interface EditorStore {
 
   selectedElement: SelectedElement | null;
   setSelectedElement: (el: SelectedElement | null) => void;
+
+  visualPreviewDevice: VisualPreviewDevice;
+  setVisualPreviewDevice: (device: VisualPreviewDevice) => void;
 
   applySelectedStyle: (property: string, value: string) => void;
   applySelectedContent: (html: string) => void;
@@ -283,6 +287,7 @@ const DEFAULT_PANEL_CONFIG: PanelConfig = {
 
 interface UserConfigCookie {
   mode?: Mode;
+  visualPreviewDevice?: VisualPreviewDevice;
   animationConfig?: Partial<AnimationConfig>;
   panels?: Partial<PanelConfig>;
   liveServer?: boolean;
@@ -524,6 +529,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setMode: (mode) => {
     patchUserConfigCookie({ mode });
     set({ mode });
+  },
+
+  visualPreviewDevice: _initUserConfig.visualPreviewDevice ?? 'desktop',
+  setVisualPreviewDevice: (device) => {
+    patchUserConfigCookie({ visualPreviewDevice: device });
+    set({ visualPreviewDevice: device });
   },
 
   selectedSelector: null,

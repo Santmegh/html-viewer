@@ -184,6 +184,12 @@ const HANDLE_CURSORS: Record<Handle, string> = {
 };
 
 const ACCENT = '#e5a45a';
+const DEVICE_PRESETS = [
+  { id: 'desktop', label: 'Desktop', width: 1200 },
+  { id: 'tablet', label: 'Tablet', width: 768 },
+  { id: 'mobile', label: 'Mobile', width: 375 },
+  { id: 'custom', label: 'Fit', width: 0 },
+] as const;
 const HW = 10; // handle width/height px
 const MOVE_HANDLE_SIZE = 28;
 const MOVE_HANDLE_GAP = 8;
@@ -198,6 +204,8 @@ interface SelectionOverlayProps {
 
 const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCommit, refreshTick }) => {
   const [dragTick, setDragTick] = useState(0);
+  const [activeGuides, setActiveGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  const guideLinesRef = useRef<{ v: number[]; h: number[] }>({ v: [], h: [] });
 
   if (!selEl.isConnected) return null;
 
@@ -214,6 +222,49 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
 
   const ifrWin = iframe.contentWindow;
   const rotateDeg = getRotateDeg(selEl, ifrWin);
+
+  const collectGuideLines = () => {
+    const doc = iframe.contentDocument;
+    if (!doc) return { v: [] as number[], h: [] as number[] };
+
+    const lines = { v: new Set<number>(), h: new Set<number>() };
+    const addRect = (rect: DOMRect) => {
+      lines.v.add(ifrRect.left + rect.left);
+      lines.v.add(ifrRect.left + rect.left + rect.width);
+      lines.v.add(ifrRect.left + rect.left + rect.width / 2);
+      lines.h.add(ifrRect.top + rect.top);
+      lines.h.add(ifrRect.top + rect.top + rect.height);
+      lines.h.add(ifrRect.top + rect.top + rect.height / 2);
+    };
+
+    addRect(doc.documentElement.getBoundingClientRect());
+    addRect(doc.body.getBoundingClientRect());
+
+    Array.from(doc.body.querySelectorAll<HTMLElement>('*')).forEach(el => {
+      if (el === selEl || SKIP_TAGS.has(el.tagName.toLowerCase())) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 4 && rect.height > 4) addRect(rect);
+    });
+
+    return {
+      v: Array.from(lines.v).sort((a, b) => a - b),
+      h: Array.from(lines.h).sort((a, b) => a - b),
+    };
+  };
+
+  const snapToGuide = (value: number, lines: number[]) => {
+    const threshold = 8;
+    let closest = value;
+    let bestDist = threshold + 1;
+    for (const line of lines) {
+      const dist = Math.abs(line - value);
+      if (dist < bestDist) {
+        bestDist = dist;
+        closest = line;
+      }
+    }
+    return bestDist <= threshold ? closest : value;
+  };
 
   /* ---------- pointer-down handler ---------- */
   const startInteraction = (e: React.PointerEvent<HTMLElement>, type: 'move' | Handle | 'rotate') => {
@@ -260,6 +311,9 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
       }
     };
 
+    guideLinesRef.current = collectGuideLines();
+    setActiveGuides({ v: [], h: [] });
+
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - sx;
       const dy = ev.clientY - sy;
@@ -267,8 +321,19 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
 
       if (type === 'move') {
         prepareElementForLayoutDrag();
-        selEl.style.left = (initLeft + dx) + 'px';
-        selEl.style.top  = (initTop  + dy) + 'px';
+        const outerLeft = vr.left + dx;
+        const outerTop = vr.top + dy;
+
+        const snappedLeft = snapToGuide(outerLeft, guideLinesRef.current.v);
+        const snappedTop = snapToGuide(outerTop, guideLinesRef.current.h);
+
+        selEl.style.left = (initLeft + (snappedLeft - vr.left)) + 'px';
+        selEl.style.top  = (initTop  + (snappedTop - vr.top))  + 'px';
+
+        setActiveGuides({
+          v: snappedLeft !== outerLeft ? [snappedLeft] : [],
+          h: snappedTop !== outerTop ? [snappedTop] : [],
+        });
 
       } else if (type === 'rotate') {
         const curAngle = Math.atan2(ev.clientY - cy, ev.clientX - cx);
@@ -279,22 +344,39 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
 
       } else {
         prepareElementForLayoutDrag();
-        /* Resize — compute new dims & position */
+        const activeV: number[] = [];
+        const activeH: number[] = [];
         let newW = initWidth, newH = initHeight, newL = initLeft, newT = initTop;
 
-        if (type.includes('e')) newW = Math.max(10, initWidth  + dx);
-        if (type.includes('s')) newH = Math.max(10, initHeight + dy);
-        if (type.includes('w')) { newW = Math.max(10, initWidth  - dx); newL = initLeft + (initWidth  - newW); }
-        if (type.includes('n')) { newH = Math.max(10, initHeight - dy); newT = initTop  + (initHeight - newH); }
+        if (type.includes('e')) {
+          const outerRight = snapToGuide(vr.left + initWidth + dx, guideLinesRef.current.v);
+          newW = Math.max(10, outerRight - vr.left);
+          if (outerRight !== vr.left + initWidth + dx) activeV.push(outerRight);
+        }
+        if (type.includes('s')) {
+          const outerBottom = snapToGuide(vr.top + initHeight + dy, guideLinesRef.current.h);
+          newH = Math.max(10, outerBottom - vr.top);
+          if (outerBottom !== vr.top + initHeight + dy) activeH.push(outerBottom);
+        }
+        if (type.includes('w')) {
+          const outerLeft = snapToGuide(vr.left + dx, guideLinesRef.current.v);
+          newW = Math.max(10, vr.left + initWidth - outerLeft);
+          newL = initLeft + (outerLeft - vr.left);
+          if (outerLeft !== vr.left + dx) activeV.push(outerLeft);
+        }
+        if (type.includes('n')) {
+          const outerTop = snapToGuide(vr.top + dy, guideLinesRef.current.h);
+          newH = Math.max(10, vr.top + initHeight - outerTop);
+          newT = initTop + (outerTop - vr.top);
+          if (outerTop !== vr.top + dy) activeH.push(outerTop);
+        }
 
         selEl.style.width  = newW + 'px';
         selEl.style.height = newH + 'px';
+        if (type.includes('w')) selEl.style.left = newL + 'px';
+        if (type.includes('n')) selEl.style.top  = newT + 'px';
 
-        /* Only update position if a west/north handle was dragged */
-        if (type.includes('w') || type.includes('n')) {
-          if (type.includes('w')) selEl.style.left = newL + 'px';
-          if (type.includes('n')) selEl.style.top  = newT + 'px';
-        }
+        setActiveGuides({ v: activeV, h: activeH });
       }
 
       setDragTick(t => t + 1);
@@ -309,6 +391,7 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
       if (moved || prepared) onCommit();
+      setActiveGuides({ v: [], h: [] });
       setDragTick(t => t + 1);
     };
 
@@ -355,6 +438,19 @@ const SelectionOverlay: React.FC<SelectionOverlayProps> = ({ selEl, iframe, onCo
           touchAction: 'none',
         }}
       />
+
+      {activeGuides.v.map(line => (
+        <div key={`guide-v-${line}`} style={{
+          position:'fixed', left: line, top: ifrRect.top, bottom: ifrRect.bottom, width: 1,
+          background:'rgba(229,164,90,0.75)', pointerEvents:'none', zIndex:9000,
+        }} />
+      ))}
+      {activeGuides.h.map(line => (
+        <div key={`guide-h-${line}`} style={{
+          position:'fixed', top: line, left: ifrRect.left, right: ifrRect.right, height: 1,
+          background:'rgba(229,164,90,0.75)', pointerEvents:'none', zIndex:9000,
+        }} />
+      ))}
 
       <div
         onPointerDown={e => startInteraction(e, 'move')}
@@ -469,9 +565,25 @@ const QuickToolbar: React.FC<QuickToolbarProps> = ({ selEl, ifrRect, elRect, win
   const rawBg      = selEl.style.backgroundColor || cs?.backgroundColor || '';
   const rawColor   = selEl.style.color           || cs?.color           || '';
   const rawFontSize = parseFloat(cs?.fontSize || '14');
+  const rawLeft   = selEl.style.left || (cs?.left   && cs.left   !== 'auto' ? cs.left   : '0px');
+  const rawTop    = selEl.style.top  || (cs?.top    && cs.top    !== 'auto' ? cs.top    : '0px');
+  const rawWidth  = selEl.style.width || cs?.width  || `${elRect.width}px`;
+  const rawHeight = selEl.style.height|| cs?.height || `${elRect.height}px`;
 
   const [radius,  setRadius]  = useState(parseFloat(rawRadius)  || 0);
   const [opacity, setOpacity] = useState(Math.round((parseFloat(rawOpacity) || 1) * 100));
+
+  const x = Math.round(parseFloat(rawLeft) || 0);
+  const y = Math.round(parseFloat(rawTop) || 0);
+  const w = Math.max(0, Math.round(parseFloat(rawWidth) || elRect.width));
+  const h = Math.max(0, Math.round(parseFloat(rawHeight) || elRect.height));
+
+  const setLayoutStyle = (prop: string, value: string) => {
+    if ((prop === 'left' || prop === 'top') && (cs?.position === 'static' || !selEl.style.position)) {
+      onApply('position', 'relative');
+    }
+    onApply(prop, value);
+  };
 
   useEffect(() => { setRadius(parseFloat(rawRadius)   || 0); },                               [rawRadius]);
   useEffect(() => { setOpacity(Math.round((parseFloat(rawOpacity) || 1) * 100)); }, [rawOpacity]);
@@ -494,6 +606,11 @@ const QuickToolbar: React.FC<QuickToolbarProps> = ({ selEl, ifrRect, elRect, win
   const isBold = cs?.fontWeight === '700' || cs?.fontWeight === 'bold';
   const sep = <div style={{ width: 1, height: 16, background: '#2e2e32', flexShrink: 0 }} />;
   const lbl = (s: string) => <span style={{ fontSize: 9, color: '#555', flexShrink: 0 }}>{s}</span>;
+  const inputStyle: React.CSSProperties = {
+    width: 42, border: '1px solid #2e2e32', borderRadius: 4,
+    padding: '4px 6px', background: '#111114', color: '#f4f4f8',
+    fontSize: 10, fontFamily: 'monospace', textAlign: 'right',
+  };
 
   return createPortal(
     <div
@@ -511,6 +628,25 @@ const QuickToolbar: React.FC<QuickToolbarProps> = ({ selEl, ifrRect, elRect, win
       <span style={{ fontSize: 10, color: ACCENT, fontFamily: 'monospace', fontWeight: 700, flexShrink: 0 }}>
         &lt;{selEl.tagName.toLowerCase()}{selEl.id ? '#' + selEl.id : ''}&gt;
       </span>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4, minmax(42px, 1fr))', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+        <label style={{ display:'flex', flexDirection:'column', gap: 2, fontSize: 8, color: '#888' }}>
+          X
+          <input type="number" value={x} onChange={e => setLayoutStyle('left', `${Math.round(Number(e.target.value))}px`)} style={inputStyle} />
+        </label>
+        <label style={{ display:'flex', flexDirection:'column', gap: 2, fontSize: 8, color: '#888' }}>
+          Y
+          <input type="number" value={y} onChange={e => setLayoutStyle('top', `${Math.round(Number(e.target.value))}px`)} style={inputStyle} />
+        </label>
+        <label style={{ display:'flex', flexDirection:'column', gap: 2, fontSize: 8, color: '#888' }}>
+          W
+          <input type="number" value={w} onChange={e => onApply('width', `${Math.max(0, Math.round(Number(e.target.value)))}px`)} style={inputStyle} />
+        </label>
+        <label style={{ display:'flex', flexDirection:'column', gap: 2, fontSize: 8, color: '#888' }}>
+          H
+          <input type="number" value={h} onChange={e => onApply('height', `${Math.max(0, Math.round(Number(e.target.value)))}px`)} style={inputStyle} />
+        </label>
+      </div>
 
       {sep}
 
@@ -586,10 +722,12 @@ const VisualEditor: React.FC = () => {
     files, activeFileId,
     setSelectedElement, timelineAnimationStyle,
     setSelectedSelector, setVisualBridge, selectedSelector,
+    showNotification, visualPreviewDevice, setVisualPreviewDevice,
   } = useEditorStore();
 
   const iframeRef   = useRef<HTMLIFrameElement>(null);
   const wrapRef     = useRef<HTMLDivElement>(null);
+  const copiedStyleRef = useRef<string | null>(null);
   const animStyleRef  = useRef(timelineAnimationStyle);
   const selElRef      = useRef<HTMLElement | null>(null);
   const hovElRef      = useRef<HTMLElement | null>(null);
@@ -957,6 +1095,33 @@ const VisualEditor: React.FC = () => {
       const FONTS  = ['sans-serif','serif','monospace','Arial','Georgia','Courier New','Verdana'];
       const SIZES  = ['10px','12px','14px','16px','18px','20px','24px','32px','48px','64px'];
 
+      const copyInlineStyles = () => {
+        copiedStyleRef.current = t.getAttribute('style') || '';
+        showNotification('Styles copied');
+      };
+
+      const pasteInlineStyles = () => {
+        if (!copiedStyleRef.current) return;
+        t.setAttribute('style', copiedStyleRef.current);
+        setTick(t2 => t2 + 1);
+        syncToSource(t);
+        if (t === selElRef.current) refreshSnapshot(t);
+        showNotification('Styles pasted');
+      };
+
+      const duplicateElement = () => {
+        if (!t.parentElement) return;
+        const clone = t.cloneNode(true) as HTMLElement;
+        if (clone.id) clone.removeAttribute('id');
+        t.parentElement.insertBefore(clone, t.nextSibling);
+        updateSource(t, tgt => {
+          const newClone = tgt.cloneNode(true) as HTMLElement;
+          if (newClone.id) newClone.removeAttribute('id');
+          tgt.parentElement?.insertBefore(newClone, tgt.nextSibling);
+        });
+        showNotification('Element duplicated');
+      };
+
       showCtx(e as unknown as React.MouseEvent, [
         { label: `<${t.tagName.toLowerCase()}${t.id ? '#'+t.id : ''}>`, disabled: true },
         { separator: true, label: '' },
@@ -977,7 +1142,9 @@ const VisualEditor: React.FC = () => {
         { label:'Toggle Underline', action:() => { const td = win.getComputedStyle(t).textDecoration; qa('text-decoration', td.includes('underline')?'none':'underline'); } },
         { separator: true, label: '' },
         { label:'Copy HTML',    icon:'📋', action:() => navigator.clipboard.writeText(t.outerHTML) },
-        { label:'Copy styles',  icon:'🎨', action:() => navigator.clipboard.writeText(t.getAttribute('style')||'') },
+        { label:'Copy styles',  icon:'🎨', action: copyInlineStyles },
+        { label:'Paste styles', icon:'📥', disabled: !copiedStyleRef.current, action: pasteInlineStyles },
+        { label:'Duplicate',    icon:'📄', action: duplicateElement },
         { label:'Reset styles', icon:'↺',  danger:true, action:() => { t.removeAttribute('style'); setTick(t2=>t2+1); syncToSource(t); } },
         { label:'Hide element', icon:'👁️', action:() => qa('display','none') },
         { label:'Delete',       icon:'🗑️', danger:true, action:() => {
@@ -1077,6 +1244,27 @@ const VisualEditor: React.FC = () => {
           )}
         </div>
 
+        <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
+          {DEVICE_PRESETS.map(device => {
+            const active = visualPreviewDevice === device.id;
+            return (
+              <button
+                key={device.id}
+                onClick={() => setVisualPreviewDevice(device.id)}
+                title={`Preview as ${device.label}`}
+                style={{
+                  padding: '4px 8px', borderRadius: 5, fontSize: 10,
+                  background: active ? 'rgba(229,164,90,0.16)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${active ? 'rgba(229,164,90,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  color: active ? '#f6f1d4' : '#c8cad1', cursor: 'pointer',
+                }}
+              >
+                {device.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
           {selEl && (
@@ -1122,33 +1310,62 @@ const VisualEditor: React.FC = () => {
           )}
         </div>
       </div>
+      <div style={{ flexShrink: 0, padding: '6px 8px', background: '#151517', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#999', fontSize: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span>Click to select · Double-click to edit · Esc to deselect · Ctrl/Cmd+Z undo</span>
+        <span style={{ color: '#777' }}>|</span>
+        <span>Viewing as: <strong style={{ color: '#e5a45a' }}>{visualPreviewDevice === 'custom' ? 'Fit view' : visualPreviewDevice}</strong></span>
+      </div>
 
       {/* ── Preview ── */}
-      <div ref={wrapRef} style={{ flex:1, position:'relative', overflow:'hidden' }}>
-        <iframe
-          ref={iframeRef}
-          title="Visual Editor"
-          onLoad={() => {
-            setInteraction('select');
-            eventsCleanupRef.current?.();
-            const cleanup = attachEvents();
-            eventsCleanupRef.current = typeof cleanup === 'function' ? cleanup : null;
+      <div ref={wrapRef} style={{ flex:1, position:'relative', overflow:'auto', background:'#111113', display:'flex', justifyContent:'center', alignItems:'center' }}>
+        <div style={{
+          position: 'relative',
+          width: visualPreviewDevice === 'custom' ? '100%' : `${DEVICE_PRESETS.find(d => d.id === visualPreviewDevice)?.width}px`,
+          minWidth: visualPreviewDevice === 'custom' ? '100%' : `${DEVICE_PRESETS.find(d => d.id === visualPreviewDevice)?.width}px`,
+          height: '100%',
+          maxHeight: '100%',
+          background: '#fff',
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: visualPreviewDevice === 'custom' ? 'none' : '0 18px 62px rgba(0,0,0,0.45)',
+        }}>
+          <iframe
+            ref={iframeRef}
+            title="Visual Editor"
+            onLoad={() => {
+              setInteraction('select');
+              eventsCleanupRef.current?.();
+              const cleanup = attachEvents();
+              eventsCleanupRef.current = typeof cleanup === 'function' ? cleanup : null;
 
-            const pending = pendingSelectorRef.current;
-            if (pending) {
-              pendingSelectorRef.current = null;
-              setTimeout(() => {
-                const doc   = iframeRef.current?.contentDocument;
-                const found = doc?.querySelector(pending) as HTMLElement | null;
-                if (found && !SKIP_TAGS.has(found.tagName.toLowerCase())) selectElement(found);
-              }, 50);
-            }
-          }}
-          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-          srcDoc={srcDoc}
-          sandbox="allow-same-origin"
-          style={{ width:'100%', height:'100%', border:'none', background:'#fff', display:'block' }}
-        />
+              const pending = pendingSelectorRef.current;
+              if (pending) {
+                pendingSelectorRef.current = null;
+                setTimeout(() => {
+                  const doc   = iframeRef.current?.contentDocument;
+                  const found = doc?.querySelector(pending) as HTMLElement | null;
+                  if (found && !SKIP_TAGS.has(found.tagName.toLowerCase())) selectElement(found);
+                }, 50);
+              }
+            }}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+            srcDoc={srcDoc}
+            sandbox="allow-same-origin"
+            style={{ width:'100%', height:'100%', border:'none', background:'#fff', display:'block' }}
+          />
+          {visualPreviewDevice !== 'custom' && (
+            <div style={{
+              position: 'absolute', top: 10, right: 10,
+              padding: '4px 8px', borderRadius: 999,
+              background: 'rgba(0,0,0,0.55)', color: '#eee',
+              fontSize: 10, letterSpacing: '0.03em',
+            }}>
+              {DEVICE_PRESETS.find(d => d.id === visualPreviewDevice)?.label}
+            </div>
+          )}
+
+        </div>
 
         {/* Hover highlight */}
         {HR && !isEditingText && (

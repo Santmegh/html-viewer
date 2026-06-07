@@ -662,11 +662,12 @@ function useOGLRenderer(preset: OGLPreset, params: Record<string, any>) {
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
     const gl = canvas.getContext('webgl2'); if (!gl) return;
+    const gl2 = gl as WebGL2RenderingContext;
 
     function compileShader(type: number, src: string): WebGLShader | null {
-      const s = gl.createShader(type)!;
-      gl.shaderSource(s, src); gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.warn('OGL shader:', gl.getShaderInfoLog(s)); gl.deleteShader(s); return null; }
+      const s = gl2.createShader(type)!;
+      gl2.shaderSource(s, src); gl2.compileShader(s);
+      if (!gl2.getShaderParameter(s, gl2.COMPILE_STATUS)) { console.warn('OGL shader:', gl2.getShaderInfoLog(s)); gl2.deleteShader(s); return null; }
       return s;
     }
     const vs = compileShader(gl.VERTEX_SHADER, BASE_VERT);
@@ -800,7 +801,7 @@ const OGLShaderEditor: React.FC = () => {
     if (!htmlFile) { showNotification('No HTML file found'); return; }
     try {
       const code = getOGLCode();
-      const newContent = insertBeforeClosingTag(htmlFile.content, '</body>', code);
+      const newContent = insertBeforeClosingTag(htmlFile.content, 'body', code);
       updateFileContent(htmlFile.id, newContent);
       setAppliedMsg(true);
       showNotification(`✦ ${preset.label} applied to ${htmlFile.name}`);

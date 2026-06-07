@@ -15,6 +15,8 @@
     "skipLibCheck": true,
     "target": "es2022",
     "jsx": "preserve",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "types": ["node", "vite/client"],
