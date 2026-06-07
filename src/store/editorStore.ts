@@ -477,8 +477,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       timelinePatch = { timelineState: clearedTimeline, timelineAnimationStyle: '' };
     }
     const next = s.files.map(f => f.id === id ? { ...f, content } : f);
-    saveFiles(next);
     const autoSave = s.autoSave;
+    if (autoSave) saveFiles(next);
     const unsavedFileIds = autoSave
       ? s.unsavedFileIds.filter(uid => uid !== id)
       : s.unsavedFileIds.includes(id) ? s.unsavedFileIds : [...s.unsavedFileIds, id];
@@ -695,16 +695,25 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   autoSave: _initUserConfig.autoSave ?? true,
   setAutoSave: (v) => {
     patchUserConfigCookie({ autoSave: v });
-    set({ autoSave: v });
+    set((s) => {
+      if (v) saveFiles(s.files);
+      return { autoSave: v, unsavedFileIds: v ? [] : s.unsavedFileIds };
+    });
   },
 
   unsavedFileIds: [],
-  markFileSaved: (id) => set((s) => ({
-    unsavedFileIds: s.unsavedFileIds.filter(uid => uid !== id),
-    previewRefreshKey: s.previewRefreshKey + 1,
-  })),
-  markAllSaved: () => set((s) => ({
-    unsavedFileIds: [],
-    previewRefreshKey: s.previewRefreshKey + 1,
-  })),
+  markFileSaved: (id) => set((s) => {
+    saveFiles(s.files);
+    return {
+      unsavedFileIds: s.unsavedFileIds.filter(uid => uid !== id),
+      previewRefreshKey: s.previewRefreshKey + 1,
+    };
+  }),
+  markAllSaved: () => set((s) => {
+    saveFiles(s.files);
+    return {
+      unsavedFileIds: [],
+      previewRefreshKey: s.previewRefreshKey + 1,
+    };
+  }),
 }));

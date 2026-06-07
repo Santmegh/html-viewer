@@ -41,7 +41,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
   wins = [], onToggleWin, onOpenWin, onResetLayout, onApplyModePreset,
 }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const { files, activeFileId, mode, showNotification, clearConsole, setPendingFileDialog, updateFileContent, addFolder, clearProject, autoSave, setAutoSave } = useEditorStore();
+  const { files, activeFileId, mode, showNotification, clearConsole, setPendingFileDialog, updateFileContent, addFolder, clearProject, autoSave, setAutoSave, markAllSaved } = useEditorStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -162,7 +162,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
         { label: 'New File', shortcut: 'Ctrl+N', action: newFile },
         { label: 'New Folder', action: newFolder },
         { separator: true, label: '' },
-        { label: 'Save All', shortcut: 'Ctrl+S', action: () => { showNotification('All files saved ✓'); if (!autoSave) useEditorStore.getState().refreshPreview(); close(); } },
+        { label: 'Save All', shortcut: 'Ctrl+S', action: () => { markAllSaved(); showNotification('All files saved ✓'); if (!autoSave) useEditorStore.getState().refreshPreview(); close(); } },
         {
           label: `Auto Save: ${autoSave ? 'ON' : 'OFF'}`,
           checked: autoSave,

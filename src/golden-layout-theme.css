@@ -70,17 +70,22 @@
 }
 
 .lm_header .lm_tab.lm_active {
+  position: relative;
+  z-index: 2;
   background: #1e1e1e;
   color: #ccc;
-  border-bottom: 2px solid #e5a45a;
-  box-shadow: none;
+  border-bottom: 2px solid transparent;
+  box-shadow: inset 0 -2px 0 #e5a45a;
   padding-bottom: 0;
 }
 
 .lm_header .lm_tab.lm_active.lm_focused {
+  position: relative;
+  z-index: 2;
   background: #1e1e1e;
   color: #e5a45a;
-  border-bottom: 2px solid #e5a45a;
+  border-bottom: 2px solid transparent;
+  box-shadow: inset 0 -2px 0 #e5a45a;
 }
 
 /* Close button on tabs */
