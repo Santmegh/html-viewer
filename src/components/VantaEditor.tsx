@@ -281,26 +281,36 @@ ${configLines.join('\n')}
 }
 
 /* ══════════════════════════════════════════════════════
-   BUILD INJECT CODE
+   UNIQUE MARKERS — used to find & replace existing code
 ══════════════════════════════════════════════════════ */
-function buildVantaCode(effect: Effect, params: Record<string, any>, selector: string): string {
-  const libSrc = effect.lib === 'p5' ? P5_CDN : THREE_CDN;
+const MARKER_CDN_START  = '<!-- vanta-cdn-start -->';
+const MARKER_CDN_END    = '<!-- vanta-cdn-end -->';
+const MARKER_INIT_START = '<!-- vanta-init-start -->';
+const MARKER_INIT_END   = '<!-- vanta-init-end -->';
 
+/* ══════════════════════════════════════════════════════
+   BUILD HEAD BLOCK  (CDN scripts only)
+══════════════════════════════════════════════════════ */
+function buildHeadBlock(effect: Effect): string {
+  const libSrc = effect.lib === 'p5' ? P5_CDN : THREE_CDN;
+  return `${MARKER_CDN_START}
+<script src="${libSrc}"></script>
+<script src="${VANTA_BASE}/vanta.${effect.id.toLowerCase()}.min.js"></script>
+${MARKER_CDN_END}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   BUILD BODY BLOCK  (init call only)
+══════════════════════════════════════════════════════ */
+function buildInitBlock(effect: Effect, params: Record<string, any>, selector: string): string {
   const configLines: string[] = [];
   effect.params.forEach(p => {
     const val = params[p.key] ?? p.defaultVal;
-    if (p.type === 'color') {
-      configLines.push(`        ${p.key}: ${hexToNum(val as string)},`);
-    } else if (p.type === 'toggle') {
-      configLines.push(`        ${p.key}: ${val},`);
-    } else {
-      configLines.push(`        ${p.key}: ${val},`);
-    }
+    const v = p.type === 'color' ? hexToNum(val as string) : val;
+    configLines.push(`        ${p.key}: ${v},`);
   });
 
-  return `\n<!-- Vanta.js ${effect.id} Effect -->
-<script src="${libSrc}"></script>
-<script src="${VANTA_BASE}/vanta.${effect.id.toLowerCase()}.min.js"></script>
+  return `${MARKER_INIT_START}
 <script>
 (function(){
   function initVanta(){
@@ -317,7 +327,59 @@ ${configLines.join('\n')}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initVanta);
   else initVanta();
 })();
-</script>`;
+</script>
+${MARKER_INIT_END}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   SMART INJECT — replaces existing blocks or inserts fresh
+══════════════════════════════════════════════════════ */
+function smartInjectVanta(
+  html: string,
+  effect: Effect,
+  params: Record<string, any>,
+  selector: string
+): string {
+  const headBlock = buildHeadBlock(effect);
+  const initBlock = buildInitBlock(effect, params, selector);
+
+  // ── Replace or insert CDN block in <head> ──────────────
+  const cdnRe = new RegExp(
+    `${MARKER_CDN_START}[\\s\\S]*?${MARKER_CDN_END}`, 'i'
+  );
+  if (cdnRe.test(html)) {
+    html = html.replace(cdnRe, headBlock);
+  } else {
+    // Insert before </head>, or prepend if no <head>
+    if (/<\/head>/i.test(html)) {
+      html = html.replace(/<\/head>/i, `${headBlock}\n</head>`);
+    } else if (/<head>/i.test(html)) {
+      html = html.replace(/<head>/i, `<head>\n${headBlock}`);
+    } else {
+      html = headBlock + '\n' + html;
+    }
+  }
+
+  // ── Replace or insert init block in <body> ─────────────
+  const initRe = new RegExp(
+    `${MARKER_INIT_START}[\\s\\S]*?${MARKER_INIT_END}`, 'i'
+  );
+  if (initRe.test(html)) {
+    html = html.replace(initRe, initBlock);
+  } else {
+    if (/<\/body>/i.test(html)) {
+      html = html.replace(/<\/body>/i, `${initBlock}\n</body>`);
+    } else {
+      html = html + '\n' + initBlock;
+    }
+  }
+
+  return html;
+}
+
+/* ── keep for Copy Code ── */
+function buildVantaCode(effect: Effect, params: Record<string, any>, selector: string): string {
+  return buildHeadBlock(effect) + '\n\n' + buildInitBlock(effect, params, selector);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -673,8 +735,7 @@ const VantaEditor: React.FC = () => {
   const inject = useCallback(() => {
     if (!htmlFile) { showNotification('No HTML file found'); return; }
     try {
-      const code = buildVantaCode(selectedEffect, params, chosenSel);
-      const newContent = insertBeforeClosingTag(htmlFile.content, 'body', code);
+      const newContent = smartInjectVanta(htmlFile.content, selectedEffect, params, chosenSel);
       updateFileContent(htmlFile.id, newContent);
       setAppliedMsg(true);
       showNotification(`✦ Vanta ${selectedEffect.label} → ${chosenSel}`);
