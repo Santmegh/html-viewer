@@ -251,7 +251,7 @@ function ColorInput({
       {openPicker && (
         <div
           style={{
-            position: 'absolute', top: 32, left: 0, zIndex: 9999,
+            position: 'absolute', top: 32, left: 0, zIndex: 900,
             background: '#1a1a1e', border: `1px solid ${C.border}`,
             borderRadius: 8, boxShadow: '0 12px 28px rgba(0,0,0,0.65)', padding: 10,
           }}
@@ -304,7 +304,7 @@ function ColorInput({
       {openGrad && onGradient && (
         <div
           style={{
-            position: 'absolute', top: 32, right: 0, zIndex: 9999,
+            position: 'absolute', top: 32, right: 0, zIndex: 900,
             width: 240, background: '#1f1f1f', border: `1px solid ${C.border}`,
             borderRadius: 6, boxShadow: '0 12px 28px rgba(0,0,0,0.55)', padding: 8,
           }}

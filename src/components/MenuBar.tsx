@@ -301,7 +301,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
           {openMenu === menu.label && (
             <div style={{
-              position: 'absolute', top: '100%', left: 0, zIndex: 100000,
+              position: 'absolute', top: '100%', left: 0, zIndex: 900,
               background: 'linear-gradient(180deg,#35353d 0%,#2e2e36 100%)',
               border: '1px solid rgba(0,0,0,0.7)',
               borderTop: 'none',

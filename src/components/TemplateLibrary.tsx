@@ -218,7 +218,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onUseTemplate, onClos
       borderRight: '1px solid #3c3c40',
       display: 'flex',
       flexDirection: 'column',
-      zIndex: 1000,
+      zIndex: 900,
     }}>
       {/* Header */}
       <div style={{

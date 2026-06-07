@@ -115,7 +115,7 @@ import { dataUrlToBase64, fileIdFor, makeUniqueName } from '../utils/projectFile
       `Delete folder "${dialog.folderName}"?`;
 
     return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)' }}
         onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
         <div style={{ background: '#252526', border: `1px solid ${isDelete ? 'rgba(248,68,68,0.4)' : '#3e3e3e'}`, borderRadius: 8, padding: '18px 20px 16px', width: isGithubImport ? 380 : 280, boxShadow: '0 16px 48px rgba(0,0,0,0.7)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>

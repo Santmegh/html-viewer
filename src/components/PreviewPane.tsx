@@ -359,7 +359,7 @@ const PreviewPane: React.FC = () => {
             style={{
               position: 'absolute', top: 32, left: 'auto', right: 0,
               background: '#252526', border: '1px solid #3e3e3e', borderRadius: 6,
-              zIndex: 9999, minWidth: 220, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              zIndex: 900, minWidth: 220, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
               overflow: 'hidden',
             }}
           >
@@ -479,7 +479,7 @@ const PreviewPane: React.FC = () => {
                   style={{
                     position: 'absolute', top: 30, right: 0,
                     background: '#252526', border: '1px solid #3e3e3e',
-                    borderRadius: 6, zIndex: 9999, minWidth: 140,
+                    borderRadius: 6, zIndex: 900, minWidth: 140,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden',
                   }}
                 >

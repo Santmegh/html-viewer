@@ -45,7 +45,7 @@ const EditorAdBanner: React.FC = () => {
   }, []);
   if (dismissed) return null;
   return (
-    <div style={{ position: 'fixed', bottom: 30, right: 16, zIndex: 9999, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', maxWidth: 300 }}>
+    <div style={{ position: 'fixed', bottom: 30, right: 16, zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', maxWidth: 300 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 9, color: '#555', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Advertisement</span>
         <button onClick={handleDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 2 }}>
@@ -221,7 +221,7 @@ function MobileApp() {
       {notification && (
         <div style={{
           position: 'fixed', bottom: 70, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 1000000,
+          zIndex: 1400,
           background: 'linear-gradient(180deg,#3a3a42 0%,#2e2e36 100%)',
           border: '1px solid rgba(0,0,0,0.6)', borderTopColor: 'rgba(255,255,255,0.1)',
           borderRadius: 8, padding: '9px 20px', fontSize: 13, color: '#d8d8d8',
@@ -332,7 +332,7 @@ function DesktopApp() {
         background: SKU_TITLEBAR,
         borderBottom: '1px solid rgba(0,0,0,0.6)',
         boxShadow: '0 1px 0 rgba(255,255,255,0.07),0 3px 10px rgba(0,0,0,0.5)',
-        position: 'relative', zIndex: 9999,
+        position: 'relative', zIndex: 100,
       }}>
         {/* Logo + Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', flexShrink: 0, borderRight: '1px solid rgba(0,0,0,0.4)', height: '100%' }}>
@@ -469,7 +469,7 @@ function DesktopApp() {
       {/* ══ SKEUOMORPHIC TOAST ══ */}
       {notification && (
         <div style={{
-          position: 'fixed', bottom: 36, right: 16, zIndex: 1000000,
+          position: 'fixed', bottom: 36, right: 16, zIndex: 1400,
           background: 'linear-gradient(180deg,#3a3a42 0%,#2e2e36 100%)',
           border: '1px solid rgba(0,0,0,0.6)',
           borderTopColor: 'rgba(255,255,255,0.1)',

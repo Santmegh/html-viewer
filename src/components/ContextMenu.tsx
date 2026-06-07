@@ -106,7 +106,7 @@ const ContextMenu: React.FC<Props> = ({ x, y, items, onClose, isSubmenu }) => {
     <>
       {!isSubmenu && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 99998 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1050 }}
           onMouseDown={onClose}
           onContextMenu={e => { e.preventDefault(); onClose(); }}
         />
@@ -123,7 +123,7 @@ const ContextMenu: React.FC<Props> = ({ x, y, items, onClose, isSubmenu }) => {
         border: '1px solid #3f3f46',
         borderRadius: 8,
         boxShadow: '0 16px 40px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)',
-        zIndex: isSubmenu ? 100000 : 99999,
+        zIndex: isSubmenu ? 1000 : 1000,
         padding: '6px 0',
         maxHeight: '70vh',
         overflowY: 'auto',
