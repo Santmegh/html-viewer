@@ -17,10 +17,11 @@ import AnimTracksSubPanel from './AnimTracksSubPanel';
 import ConsolePanel from './ConsolePanel';
 import EventListenersPanel from './EventListenersPanel';
 import OGLShaderEditor from './OGLShaderEditor';
+import VantaEditor from './VantaEditor';
 import { setGlSectionOpener } from '../lib/propSectionBridge';
 import { deleteCookie, getCookie, setCookie } from '../utils/cookies';
 
-export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'vanta-editor' | 'prop-section';
+export type PanelType = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'vanta-editor' | 'ogl-editor' | 'prop-section';
 export type Mode = 'code' | 'split' | 'visual';
 
 export interface GoldenLayoutEditorHandle {
@@ -120,14 +121,14 @@ const PANEL_TITLES: Record<PanelType, string> = {
   properties: 'Properties', timeline: 'Timeline',
   events: 'Events', console: 'Console',
   'anim-presets': 'Anim Presets', 'anim-config': 'Anim Config', 'anim-tracks': 'Anim Tracks',
-  'vanta-editor': 'Vanta JS',
+  'vanta-editor': 'Vanta JS', 'ogl-editor': 'OGL Shader FX',
   'prop-section': 'Property Group',
 };
 
 const COOKIE_LAYOUT_MAX_LENGTH = 3600;
 const PANEL_TYPES: readonly PanelType[] = [
   'files', 'code', 'preview', 'properties', 'timeline', 'events', 'console',
-  'anim-presets', 'anim-config', 'anim-tracks', 'vanta-editor', 'prop-section',
+  'anim-presets', 'anim-config', 'anim-tracks', 'vanta-editor', 'ogl-editor', 'prop-section',
 ];
 
 function isPanelType(value: unknown): value is PanelType {
@@ -168,6 +169,8 @@ function renderPanelContent(type: PanelType, mode: Mode, sectionTitle?: string):
     case 'anim-tracks':
       return <AnimTracksSubPanel />;
     case 'vanta-editor':
+      return <VantaEditor />;
+    case 'ogl-editor':
       return <OGLShaderEditor />;
     case 'prop-section':
       return <PropertiesPanel hideHeader singleSection={sectionTitle || ''} />;
@@ -298,7 +301,7 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
       const gl = new GoldenLayout(containerRef.current);
       glRef.current = gl;
 
-      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console', 'anim-presets', 'anim-config', 'anim-tracks', 'vanta-editor'];
+      const TYPES: PanelType[] = ['files', 'code', 'preview', 'properties', 'timeline', 'events', 'console', 'anim-presets', 'anim-config', 'anim-tracks', 'vanta-editor', 'ogl-editor'];
       TYPES.forEach(type => {
         gl.registerComponentFactoryFunction(type, (container) => {
           (container as any)._myType = type;

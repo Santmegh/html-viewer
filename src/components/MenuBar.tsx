@@ -29,12 +29,12 @@ const WIN_LABELS: Record<WinId, string> = {
   console: 'Console', properties: 'Properties', timeline: 'Timeline',
   events: 'Event Listeners', 'anim-presets': 'Anim Presets',
   'anim-config': 'Anim Config', 'anim-tracks': 'Anim Tracks',
-  'vanta-editor': 'Vanta JS',
+  'vanta-editor': 'Vanta JS', 'ogl-editor': 'OGL Shader FX',
 };
 const WIN_ICONS: Record<WinId, string> = {
   files: '', code: '', preview: '', console: '', properties: '',
   timeline: '', events: '', 'anim-presets': '', 'anim-config': '',
-  'anim-tracks': '', 'vanta-editor': '',
+  'anim-tracks': '', 'vanta-editor': '', 'ogl-editor': '',
 };
 
 const MenuBar: React.FC<MenuBarProps> = ({

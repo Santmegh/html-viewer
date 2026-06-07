@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Router as WouterRouter, Route, Switch } from 'wouter';
 
 /* ── Legacy type re-exports (MenuBar still imports these) ── */
-export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'vanta-editor';
+export type WinId = 'files' | 'code' | 'preview' | 'properties' | 'timeline' | 'events' | 'console' | 'anim-presets' | 'anim-config' | 'anim-tracks' | 'vanta-editor' | 'ogl-editor';
 export interface WinState {
   id: WinId; title: string; visible: boolean; minimized: boolean;
   docked: boolean; zIndex: number; rect: { x: number; y: number; w: number; h: number };
@@ -29,8 +29,8 @@ import {
 } from 'react-icons/fi';
 
 /* ─── Non-intrusive Corner Ad Banner ─── */
-const EditorAdBanner: React.FC = () => {
-  const AD_COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+const EditorAdBanner: React.FC<{ mobile?: boolean }> = ({ mobile = false }) => {
+  const AD_COOLDOWN_MS = 20 * 60 * 1000;
   const isDismissed = () => {
     try {
       const ts = localStorage.getItem('editor-ad-dismissed-at');
@@ -39,42 +39,65 @@ const EditorAdBanner: React.FC = () => {
     } catch { return false; }
   };
   const [dismissed, setDismissed] = useState(isDismissed);
+  /* Two-click close: 1st = visit ad, 2nd = actually close */
+  const [pendingClose, setPendingClose] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
   const handleDismiss = () => {
+    if (!pendingClose) {
+      /* First click — navigate to ad, show "tap again to close" hint */
+      setPendingClose(true);
+      const iframe = containerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
+      const adUrl = (iframe?.src && iframe.src !== 'about:blank')
+        ? iframe.src
+        : 'https://www.highperformanceformat.com';
+      try { window.open(adUrl, '_blank', 'noopener,noreferrer'); } catch {}
+      /* Auto-reset pending after 4 s if user doesn't click again */
+      setTimeout(() => setPendingClose(false), 4000);
+      return;
+    }
+    /* Second click — close for real */
     setDismissed(true);
+    setPendingClose(false);
     try { localStorage.setItem('editor-ad-dismissed-at', String(Date.now())); } catch {}
     setTimeout(() => setDismissed(false), AD_COOLDOWN_MS);
   };
+
   useEffect(() => {
     if (dismissed) return;
     const el = containerRef.current;
     if (!el) return;
     const w = window as Window & { atOptions?: object };
-    w.atOptions = {
-      key: 'bb79f6157e39f7e04c987ee47a1c5964',
-      format: 'iframe',
-      height: 50,
-      width: 320,
-      params: {},
-    };
+    w.atOptions = { key: 'bb79f6157e39f7e04c987ee47a1c5964', format: 'iframe', height: 50, width: 320, params: {} };
     const script = document.createElement('script');
     script.src = 'https://www.highperformanceformat.com/bb79f6157e39f7e04c987ee47a1c5964/invoke.js';
     script.async = true;
     el.appendChild(script);
-    return () => {
-      try { el.removeChild(script); } catch {}
-    };
+    return () => { try { el.removeChild(script); } catch {} };
   }, [dismissed]);
+
   if (dismissed) return null;
+
+  const wrapStyle: React.CSSProperties = mobile
+    ? { position: 'fixed', bottom: 66, left: '50%', transform: 'translateX(-50%)', zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: 336, maxWidth: 'calc(100vw - 16px)' }
+    : { position: 'fixed', bottom: 30, right: 16, zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: 336 };
+
   return (
-    <div style={{ position: 'fixed', bottom: 30, right: 16, zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: 336 }}>
+    <div style={wrapStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 9, color: '#555', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Advertisement</span>
-        <button onClick={handleDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 2 }}>
-          <FiX size={12} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {pendingClose && (
+            <span style={{ fontSize: 8, color: '#e5a45a', fontWeight: 600 }}>Tap × again to close</span>
+          )}
+          <button onClick={handleDismiss}
+            title={pendingClose ? 'Tap to close' : 'Tap once to visit ad, twice to close'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: pendingClose ? '#e5a45a' : '#666', padding: 2 }}>
+            <FiX size={12} />
+          </button>
+        </div>
       </div>
-      <div ref={containerRef} style={{ width: 320, height: 50, overflow: 'hidden' }} />
+      <div ref={containerRef} style={{ width: 320, height: 50, overflow: 'hidden', maxWidth: '100%' }} />
     </div>
   );
 };
@@ -251,6 +274,7 @@ function MobileApp() {
           {notification}
         </div>
       )}
+      <EditorAdBanner mobile />
     </div>
   );
 }
@@ -331,6 +355,7 @@ function DesktopApp() {
     { type: 'anim-config',  icon: <FiSliders size={12} />,  label: 'Anim Config', title: 'Anim Config' },
     { type: 'anim-tracks',  icon: <FiLayout size={12} />,   label: 'Anim Tracks', title: 'Anim Tracks' },
     { type: 'vanta-editor', icon: <FiBox size={12} />,      label: 'Vanta JS',    title: 'Vanta JS' },
+    { type: 'ogl-editor',   icon: <FiBox size={12} />,      label: 'OGL Shader',  title: 'OGL Shader FX' },
   ];
 
   /* ── Skeuomorphic tokens ── */

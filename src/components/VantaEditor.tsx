@@ -1,239 +1,278 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import { FiZap, FiCheck, FiCode, FiRefreshCw, FiCopy, FiChevronDown, FiExternalLink } from 'react-icons/fi';
-import { getTargetHtmlFile, getTargetJsFile, insertBeforeClosingTag } from '../utils/projectFiles';
+import { getTargetHtmlFile, insertBeforeClosingTag } from '../utils/projectFiles';
+import { FiZap, FiCopy, FiCheck, FiPlus, FiMousePointer, FiSettings, FiEye, FiChevronDown, FiTarget } from 'react-icons/fi';
 
-/* ─── CDNs ─── */
-const THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js';
-const P5_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js';
-const VANTA_BASE = 'https://cdn.jsdelivr.net/npm/vanta@latest/dist';
+/* ══════════════════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════════════════ */
+const SK = {
+  bg:          '#1e1e22',
+  surface:     '#252528',
+  surface2:    '#2a2a30',
+  raised:      '#323238',
+  border:      'rgba(0,0,0,0.55)',
+  borderHi:    'rgba(255,255,255,0.10)',
+  text:        '#d8d8d8',
+  textDim:     '#888890',
+  textMuted:   '#555560',
+  amber:       '#e5a45a',
+  amberDim:    'rgba(229,164,90,0.12)',
+  amberBrd:    'rgba(229,164,90,0.45)',
+  purple:      '#a78bfa',
+  purpleDim:   'rgba(167,139,250,0.12)',
+  purpleBrd:   'rgba(167,139,250,0.4)',
+  green:       '#4ec98e',
+  greenBrd:    'rgba(78,201,142,0.4)',
+};
 
-/* ─── Types ─── */
-type CtrlType = 'color' | 'range' | 'toggle' | 'select';
-interface Ctrl {
-  key: string; label: string; type: CtrlType;
-  min?: number; max?: number; step?: number;
-  defaultVal: any;
-  options?: { label: string; value: any }[];
+const BTN_RAISED  = 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)';
+const BTN_AMBER   = 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)';
+const BTN_PURPLE  = 'linear-gradient(180deg,#5b21b6 0%,#7c3aed 40%,#5b21b6 100%)';
+const BTN_GREEN   = 'linear-gradient(180deg,#14532d 0%,#22c55e 40%,#14532d 100%)';
+const SHADOW_RAISED = 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)';
+const SHADOW_SUNKEN = 'inset 0 2px 4px rgba(0,0,0,0.55)';
+
+/* ══════════════════════════════════════════════════════
+   CDNs
+══════════════════════════════════════════════════════ */
+const THREE_CDN  = 'https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js';
+const P5_CDN     = 'https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js';
+const VANTA_BASE = 'https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist';
+
+/* ══════════════════════════════════════════════════════
+   CONFIG PARAM TYPES
+══════════════════════════════════════════════════════ */
+type ParamType = 'color' | 'range' | 'int' | 'toggle';
+
+interface Param {
+  key: string;
+  label: string;
+  type: ParamType;
+  defaultVal: string | number | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
 }
-interface EffectDef {
-  id: string; label: string; emoji: string;
-  lib: 'three' | 'p5'; controls: Ctrl[];
-  desc: string;
+
+/* ══════════════════════════════════════════════════════
+   EFFECT DEFINITIONS WITH ALL CONFIG PARAMS
+══════════════════════════════════════════════════════ */
+interface Effect {
+  id: string;
+  label: string;
+  emoji: string;
+  lib: 'three' | 'p5';
+  params: Param[];
 }
 
-/* ─── Effect Definitions ─── */
-const EFFECTS: EffectDef[] = [
+const EFFECTS: Effect[] = [
   {
-    id: 'NET', label: 'Net', emoji: '🕸', lib: 'three', desc: 'Connected nodes particle network',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Net Color', type: 'color', defaultVal: 0xff6633 },
-      { key: 'points', label: 'Points', type: 'range', min: 3, max: 20, step: 1, defaultVal: 9 },
-      { key: 'maxDistance', label: 'Max Distance', type: 'range', min: 10, max: 40, step: 1, defaultVal: 20 },
-      { key: 'spacing', label: 'Spacing', type: 'range', min: 5, max: 25, step: 1, defaultVal: 15 },
-      { key: 'showDots', label: 'Show Dots', type: 'toggle', defaultVal: true },
-      { key: 'backgroundAlpha', label: 'BG Alpha', type: 'range', min: 0, max: 1, step: 0.05, defaultVal: 1 },
+    id: 'BIRDS', label: 'Birds', emoji: '🐦', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background',   type: 'color',  defaultVal: '#111111' },
+      { key: 'color1',          label: 'Color 1',      type: 'color',  defaultVal: '#a855f7' },
+      { key: 'color2',          label: 'Color 2',      type: 'color',  defaultVal: '#ff00aa' },
+      { key: 'birdSize',        label: 'Bird Size',    type: 'range',  defaultVal: 1.5,  min: 0.1, max: 5,   step: 0.1 },
+      { key: 'wingSpan',        label: 'Wing Span',    type: 'range',  defaultVal: 30,   min: 10,  max: 60,  step: 1   },
+      { key: 'speedLimit',      label: 'Speed Limit',  type: 'range',  defaultVal: 5,    min: 1,   max: 10,  step: 0.5 },
+      { key: 'separation',      label: 'Separation',   type: 'range',  defaultVal: 20,   min: 5,   max: 100, step: 1   },
+      { key: 'alignment',       label: 'Alignment',    type: 'range',  defaultVal: 20,   min: 5,   max: 100, step: 1   },
+      { key: 'cohesion',        label: 'Cohesion',     type: 'range',  defaultVal: 20,   min: 5,   max: 100, step: 1   },
+      { key: 'quantity',        label: 'Quantity',     type: 'int',    defaultVal: 3,    min: 1,   max: 10,  step: 1   },
     ],
   },
   {
-    id: 'WAVES', label: 'Waves', emoji: '🌊', lib: 'three', desc: '3D animated ocean waves',
-    controls: [
-      { key: 'color', label: 'Wave Color', type: 'color', defaultVal: 0x005f8e },
-      { key: 'shininess', label: 'Shininess', type: 'range', min: 0, max: 150, step: 5, defaultVal: 30 },
-      { key: 'waveHeight', label: 'Wave Height', type: 'range', min: 0, max: 40, step: 1, defaultVal: 15 },
-      { key: 'waveSpeed', label: 'Wave Speed', type: 'range', min: 0.25, max: 5, step: 0.25, defaultVal: 1 },
-      { key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.1, defaultVal: 1 },
+    id: 'FOG', label: 'Fog', emoji: '🌫️', lib: 'three',
+    params: [
+      { key: 'highlightColor', label: 'Highlight',   type: 'color', defaultVal: '#a855f7' },
+      { key: 'midtoneColor',   label: 'Midtone',     type: 'color', defaultVal: '#ff00aa' },
+      { key: 'lowlightColor',  label: 'Lowlight',    type: 'color', defaultVal: '#111111' },
+      { key: 'baseColor',      label: 'Base',        type: 'color', defaultVal: '#111111' },
+      { key: 'blurFactor',     label: 'Blur',        type: 'range', defaultVal: 0.6,  min: 0.1, max: 1.0, step: 0.05 },
+      { key: 'speed',          label: 'Speed',       type: 'range', defaultVal: 1.0,  min: 0.1, max: 5.0, step: 0.1  },
+      { key: 'zoom',           label: 'Zoom',        type: 'range', defaultVal: 1.0,  min: 0.1, max: 3.0, step: 0.1  },
     ],
   },
   {
-    id: 'BIRDS', label: 'Birds', emoji: '🐦', lib: 'three', desc: 'Flocking bird simulation',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x001a2e },
-      { key: 'color1', label: 'Color 1', type: 'color', defaultVal: 0xff6600 },
-      { key: 'color2', label: 'Color 2', type: 'color', defaultVal: 0x00ccff },
-      { key: 'birdSize', label: 'Bird Size', type: 'range', min: 0.5, max: 3, step: 0.1, defaultVal: 1 },
-      { key: 'wingSpan', label: 'Wing Span', type: 'range', min: 10, max: 50, step: 1, defaultVal: 30 },
-      { key: 'speedLimit', label: 'Speed', type: 'range', min: 1, max: 10, step: 0.5, defaultVal: 4 },
-      { key: 'quantity', label: 'Quantity', type: 'range', min: 1, max: 10, step: 1, defaultVal: 3 },
-      { key: 'backgroundAlpha', label: 'BG Alpha', type: 'range', min: 0, max: 1, step: 0.05, defaultVal: 1 },
+    id: 'WAVES', label: 'Waves', emoji: '🌊', lib: 'three',
+    params: [
+      { key: 'color',       label: 'Color',       type: 'color', defaultVal: '#a855f7' },
+      { key: 'shininess',   label: 'Shininess',   type: 'range', defaultVal: 40,   min: 0,   max: 150, step: 1   },
+      { key: 'waveHeight',  label: 'Wave Height', type: 'range', defaultVal: 20,   min: 0,   max: 40,  step: 1   },
+      { key: 'waveSpeed',   label: 'Wave Speed',  type: 'range', defaultVal: 1.0,  min: 0.1, max: 3.0, step: 0.1 },
+      { key: 'zoom',        label: 'Zoom',        type: 'range', defaultVal: 1.0,  min: 0.5, max: 2.0, step: 0.1 },
     ],
   },
   {
-    id: 'GLOBE', label: 'Globe', emoji: '🌐', lib: 'three', desc: 'Interactive 3D globe with dots',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Color 1', type: 'color', defaultVal: 0xff6633 },
-      { key: 'color2', label: 'Color 2', type: 'color', defaultVal: 0x0000ff },
-      { key: 'size', label: 'Size', type: 'range', min: 0.3, max: 2, step: 0.1, defaultVal: 1 },
+    id: 'CLOUDS', label: 'Clouds', emoji: '☁️', lib: 'three',
+    params: [
+      { key: 'backgroundColor',   label: 'Background',    type: 'color', defaultVal: '#111111' },
+      { key: 'skyColor',          label: 'Sky',           type: 'color', defaultVal: '#1a1a3e' },
+      { key: 'cloudColor',        label: 'Cloud',         type: 'color', defaultVal: '#888888' },
+      { key: 'cloudShadowColor',  label: 'Cloud Shadow',  type: 'color', defaultVal: '#333333' },
+      { key: 'sunColor',          label: 'Sun',           type: 'color', defaultVal: '#ffcc88' },
+      { key: 'sunGlareColor',     label: 'Sun Glare',     type: 'color', defaultVal: '#ff6622' },
+      { key: 'sunlightX',         label: 'Sun X',         type: 'range', defaultVal: 1.0, min: -1, max: 1, step: 0.05 },
+      { key: 'sunlightY',         label: 'Sun Y',         type: 'range', defaultVal: 1.0, min: -1, max: 1, step: 0.05 },
+      { key: 'speed',             label: 'Speed',         type: 'range', defaultVal: 1.0, min: 0, max: 3, step: 0.1   },
     ],
   },
   {
-    id: 'FOG', label: 'Fog', emoji: '🌫', lib: 'three', desc: 'Soft foggy gradient noise',
-    controls: [
-      { key: 'highlightColor', label: 'Highlight', type: 'color', defaultVal: 0xff6600 },
-      { key: 'midtoneColor', label: 'Midtone', type: 'color', defaultVal: 0x663300 },
-      { key: 'lowlightColor', label: 'Lowlight', type: 'color', defaultVal: 0x331100 },
-      { key: 'baseColor', label: 'Base', type: 'color', defaultVal: 0x000000 },
-      { key: 'blurFactor', label: 'Blur', type: 'range', min: 0.1, max: 0.9, step: 0.05, defaultVal: 0.6 },
-      { key: 'speed', label: 'Speed', type: 'range', min: 0.5, max: 5, step: 0.5, defaultVal: 1 },
-      { key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.1, defaultVal: 1 },
+    id: 'CLOUDS2', label: 'Clouds 2', emoji: '🌤️', lib: 'p5',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'speed',           label: 'Speed',      type: 'range', defaultVal: 1.0, min: 0.1, max: 5.0, step: 0.1 },
+      { key: 'quantity',        label: 'Quantity',   type: 'int',   defaultVal: 3,   min: 1,   max: 10,  step: 1   },
+      { key: 'size',            label: 'Size',       type: 'range', defaultVal: 1.5, min: 0.5, max: 5.0, step: 0.1 },
+      { key: 'xOffset',         label: 'X Offset',  type: 'range', defaultVal: 0,   min: -1,  max: 1,   step: 0.05 },
+      { key: 'yOffset',         label: 'Y Offset',  type: 'range', defaultVal: 0,   min: -1,  max: 1,   step: 0.05 },
     ],
   },
   {
-    id: 'CLOUDS', label: 'Clouds', emoji: '☁️', lib: 'three', desc: 'Flowing 3D cloud sky',
-    controls: [
-      { key: 'skyColor', label: 'Sky Color', type: 'color', defaultVal: 0x68b8d7 },
-      { key: 'cloudColor', label: 'Cloud Color', type: 'color', defaultVal: 0xadc4d9 },
-      { key: 'cloudShadowColor', label: 'Shadow', type: 'color', defaultVal: 0x183550 },
-      { key: 'sunColor', label: 'Sun Color', type: 'color', defaultVal: 0xff9919 },
-      { key: 'speed', label: 'Speed', type: 'range', min: 0, max: 3, step: 0.1, defaultVal: 1 },
-      { key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.1, defaultVal: 1 },
+    id: 'GLOBE', label: 'Globe', emoji: '🌐', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color',           label: 'Color 1',    type: 'color', defaultVal: '#a855f7' },
+      { key: 'color2',          label: 'Color 2',    type: 'color', defaultVal: '#ff00aa' },
+      { key: 'size',            label: 'Size',       type: 'range', defaultVal: 1.0, min: 0.3, max: 3.0, step: 0.1 },
+      { key: 'offsetX',         label: 'Offset X',  type: 'range', defaultVal: 0,   min: -100, max: 100, step: 1  },
+      { key: 'offsetY',         label: 'Offset Y',  type: 'range', defaultVal: 0,   min: -100, max: 100, step: 1  },
     ],
   },
   {
-    id: 'CLOUDS2', label: 'Clouds 2', emoji: '🌤', lib: 'p5', desc: 'P5.js flat animated clouds',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Cloud Color', type: 'color', defaultVal: 0xffffff },
-      { key: 'speed', label: 'Speed', type: 'range', min: 0.5, max: 5, step: 0.5, defaultVal: 1 },
+    id: 'NET', label: 'Net', emoji: '🕸️', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background',   type: 'color',  defaultVal: '#111111' },
+      { key: 'color',           label: 'Net Color',    type: 'color',  defaultVal: '#a855f7' },
+      { key: 'points',          label: 'Points',       type: 'int',    defaultVal: 10,  min: 1,   max: 30,  step: 1   },
+      { key: 'maxDistance',     label: 'Max Distance', type: 'range',  defaultVal: 20,  min: 5,   max: 40,  step: 1   },
+      { key: 'spacing',         label: 'Spacing',      type: 'range',  defaultVal: 18,  min: 5,   max: 40,  step: 1   },
+      { key: 'showDots',        label: 'Show Dots',    type: 'toggle', defaultVal: true },
     ],
   },
   {
-    id: 'RINGS', label: 'Rings', emoji: '💫', lib: 'three', desc: 'Hypnotic spinning rings',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Ring Color', type: 'color', defaultVal: 0xff6633 },
-      { key: 'backgroundAlpha', label: 'BG Alpha', type: 'range', min: 0, max: 1, step: 0.05, defaultVal: 1 },
+    id: 'CELLS', label: 'Cells', emoji: '🔬', lib: 'p5',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color1',          label: 'Color 1',    type: 'color', defaultVal: '#a855f7' },
+      { key: 'color2',          label: 'Color 2',    type: 'color', defaultVal: '#ff00aa' },
+      { key: 'size',            label: 'Cell Size',  type: 'range', defaultVal: 1.5, min: 0.5, max: 5.0, step: 0.1 },
+      { key: 'speed',           label: 'Speed',      type: 'range', defaultVal: 1.0, min: 0.1, max: 5.0, step: 0.1 },
     ],
   },
   {
-    id: 'CELLS', label: 'Cells', emoji: '🔬', lib: 'p5', desc: 'Organic voronoi cell pattern',
-    controls: [
-      { key: 'color1', label: 'Color 1', type: 'color', defaultVal: 0x141416 },
-      { key: 'color2', label: 'Color 2', type: 'color', defaultVal: 0xff6633 },
-      { key: 'size', label: 'Cell Size', type: 'range', min: 1, max: 5, step: 0.5, defaultVal: 1.5 },
-      { key: 'speed', label: 'Speed', type: 'range', min: 0.5, max: 5, step: 0.5, defaultVal: 1 },
+    id: 'TRUNK', label: 'Trunk', emoji: '🌳', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color',           label: 'Branch Color', type: 'color', defaultVal: '#a855f7' },
+      { key: 'chaos',           label: 'Chaos',      type: 'range', defaultVal: 2.0, min: 0.1, max: 10,  step: 0.1 },
+      { key: 'spacing',         label: 'Spacing',    type: 'range', defaultVal: 100, min: 10,  max: 500, step: 5   },
     ],
   },
   {
-    id: 'DOTS', label: 'Dots', emoji: '⬤', lib: 'three', desc: 'Colorful animated dot grid',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Color 1', type: 'color', defaultVal: 0xff6633 },
-      { key: 'color2', label: 'Color 2', type: 'color', defaultVal: 0xffffff },
-      { key: 'size', label: 'Dot Size', type: 'range', min: 1, max: 10, step: 0.5, defaultVal: 3 },
-      { key: 'spacing', label: 'Spacing', type: 'range', min: 10, max: 50, step: 2, defaultVal: 25 },
+    id: 'TOPOLOGY', label: 'Topology', emoji: '📐', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color',           label: 'Line Color', type: 'color', defaultVal: '#a855f7' },
     ],
   },
   {
-    id: 'HALO', label: 'Halo', emoji: '✨', lib: 'three', desc: 'Neon glow halo ring effect',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'baseColor', label: 'Halo Color', type: 'color', defaultVal: 0xff6633 },
-      { key: 'amplitudeFactor', label: 'Amplitude', type: 'range', min: 0.1, max: 3, step: 0.1, defaultVal: 1 },
-      { key: 'size', label: 'Size', type: 'range', min: 0.5, max: 3, step: 0.1, defaultVal: 1 },
+    id: 'DOTS', label: 'Dots', emoji: '⬤', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color',           label: 'Color 1',    type: 'color', defaultVal: '#a855f7' },
+      { key: 'color2',          label: 'Color 2',    type: 'color', defaultVal: '#ff00aa' },
+      { key: 'size',            label: 'Dot Size',   type: 'range', defaultVal: 3.0, min: 1, max: 10, step: 0.5 },
+      { key: 'spacing',         label: 'Spacing',    type: 'range', defaultVal: 35,  min: 10, max: 80, step: 1  },
+      { key: 'showLines',       label: 'Show Lines', type: 'toggle', defaultVal: true },
     ],
   },
   {
-    id: 'TOPOLOGY', label: 'Topology', emoji: '📐', lib: 'three', desc: 'Moving terrain topology lines',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Line Color', type: 'color', defaultVal: 0xff6633 },
+    id: 'RINGS', label: 'Rings', emoji: '💫', lib: 'three',
+    params: [
+      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'color',           label: 'Ring Color', type: 'color', defaultVal: '#a855f7' },
     ],
   },
   {
-    id: 'TRUNK', label: 'Trunk', emoji: '🌳', lib: 'three', desc: 'Growing tree branch lines',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Color', type: 'color', defaultVal: 0xff6633 },
-      { key: 'spacing', label: 'Spacing', type: 'range', min: 50, max: 300, step: 10, defaultVal: 100 },
-    ],
-  },
-  {
-    id: 'RIPPLE', label: 'Ripple', emoji: '〜', lib: 'p5', desc: 'Water ripple on click',
-    controls: [
-      { key: 'backgroundColor', label: 'Background', type: 'color', defaultVal: 0x141416 },
-      { key: 'color', label: 'Ripple Color', type: 'color', defaultVal: 0xff6633 },
-      { key: 'speed', label: 'Speed', type: 'range', min: 0.5, max: 5, step: 0.5, defaultVal: 1 },
+    id: 'HALO', label: 'Halo', emoji: '✨', lib: 'three',
+    params: [
+      { key: 'backgroundColor',  label: 'Background', type: 'color', defaultVal: '#111111' },
+      { key: 'baseColor',        label: 'Base Color', type: 'color', defaultVal: '#a855f7' },
+      { key: 'amplitudeFactor',  label: 'Amplitude',  type: 'range', defaultVal: 1.0, min: 0.1, max: 5.0, step: 0.1 },
+      { key: 'xOffset',          label: 'X Offset',   type: 'range', defaultVal: 0,   min: -0.5, max: 0.5, step: 0.01 },
+      { key: 'yOffset',          label: 'Y Offset',   type: 'range', defaultVal: 0,   min: -0.5, max: 0.5, step: 0.01 },
+      { key: 'size',             label: 'Size',       type: 'range', defaultVal: 1.5, min: 0.5, max: 5.0, step: 0.1  },
     ],
   },
 ];
 
-/* ─── Helpers ─── */
-function numToHex(n: number): string { return '#' + n.toString(16).padStart(6, '0'); }
-function hexToNum(h: string): number { return parseInt(h.replace('#', ''), 16); }
-function buildDefaults(def: EffectDef): Record<string, any> {
-  const out: Record<string, any> = {};
-  def.controls.forEach(c => { out[c.key] = c.defaultVal; });
+/* ══════════════════════════════════════════════════════
+   DEFAULT PARAMS FOR AN EFFECT
+══════════════════════════════════════════════════════ */
+function defaultParams(effect: Effect): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  effect.params.forEach(p => { out[p.key] = p.defaultVal; });
   return out;
 }
 
-function parseSelectors(html: string): string[] {
-  const sel: string[] = ['body'];
-  try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('[id]').forEach(el => sel.push(`#${(el as HTMLElement).id}`));
-    const seenC = new Set<string>();
-    doc.querySelectorAll('[class]').forEach(el => {
-      (el as HTMLElement).className.split(/\s+/).filter(Boolean).forEach(c => {
-        if (!seenC.has(c)) { seenC.add(c); sel.push(`.${c}`); }
-      });
-    });
-    ['header', 'section', 'main', 'footer', 'div', 'nav', 'article', 'aside'].forEach(t => {
-      if (doc.querySelector(t) && !sel.includes(t)) sel.push(t);
-    });
-  } catch {}
-  return sel;
+/* ══════════════════════════════════════════════════════
+   COLOR HELPER: "#rrggbb" → 0xrrggbb
+══════════════════════════════════════════════════════ */
+function hexToNum(hex: string): string {
+  return '0x' + hex.replace('#', '').toUpperCase();
 }
 
-function buildPreviewDoc(effectId: string, props: Record<string, any>, def: EffectDef): string {
-  const propsLines = def.controls.map(c => {
-    const val = props[c.key] ?? c.defaultVal;
-    if (c.type === 'color') return `    ${c.key}: 0x${(val as number).toString(16).padStart(6, '0')}`;
-    if (c.type === 'toggle') return `    ${c.key}: ${Boolean(val)}`;
-    return `    ${c.key}: ${val}`;
-  }).join(',\n');
+/* ══════════════════════════════════════════════════════
+   BUILD PREVIEW HTML
+══════════════════════════════════════════════════════ */
+function buildPreview(effect: Effect, params: Record<string, any>): string {
+  const libSrc = effect.lib === 'p5' ? P5_CDN : THREE_CDN;
 
-  const libScript = def.lib === 'p5'
-    ? `<script src="${P5_CDN}"></script>`
-    : `<script src="${THREE_CDN}"></script>`;
+  const configLines: string[] = [];
+  effect.params.forEach(p => {
+    const val = params[p.key] ?? p.defaultVal;
+    if (p.type === 'color') {
+      configLines.push(`      ${p.key}: ${hexToNum(val as string)},`);
+    } else if (p.type === 'toggle') {
+      configLines.push(`      ${p.key}: ${val},`);
+    } else {
+      configLines.push(`      ${p.key}: ${val},`);
+    }
+  });
 
   return `<!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8"/>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { width: 100vw; height: 100vh; overflow: hidden; background: #141416; }
-  #vanta { width: 100%; height: 100%; }
+html,body{margin:0;width:100%;height:100%;overflow:hidden;}
+#bg{width:100%;height:100%;}
 </style>
 </head>
 <body>
-<div id="vanta"></div>
-${libScript}
-<script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>
+<div id="bg"></div>
 <script>
-(function() {
-  function initVanta() {
-    try {
-      VANTA.${effectId}({
-        el: "#vanta",
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        minHeight: 200,
-        minWidth: 200,
-${propsLines}
-      });
-    } catch(e) {
-      document.body.innerHTML = '<div style="color:#f87171;font-family:monospace;padding:20px;font-size:12px;">Preview error: ' + e.message + '</div>';
+function load(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+(async()=>{
+  try{
+    await load('${libSrc}');
+    await new Promise(r=>setTimeout(r,250));
+    window.THREE=window.THREE||THREE;
+    await load('${VANTA_BASE}/vanta.${effect.id.toLowerCase()}.min.js');
+    await new Promise(r=>setTimeout(r,150));
+    if(!window.VANTA||!VANTA.${effect.id}){
+      document.body.innerHTML='<div style="color:#e05555;padding:16px;font-family:monospace;font-size:12px">Effect not available</div>';return;
     }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVanta);
-  } else {
-    initVanta();
+    VANTA.${effect.id}({
+      el:'#bg',
+      mouseControls:true,touchControls:true,gyroControls:false,
+      minHeight:200,minWidth:200,
+${configLines.join('\n')}
+    });
+  }catch(err){
+    document.body.innerHTML='<pre style="padding:16px;color:#e05555;font-size:11px;font-family:monospace">'+err+'</pre>';
   }
 })();
 </script>
@@ -241,380 +280,602 @@ ${propsLines}
 </html>`;
 }
 
-function generateInitCode(effectId: string, selector: string, props: Record<string, any>, def: EffectDef): string {
-  const lines = def.controls.map(c => {
-    const val = props[c.key] ?? c.defaultVal;
-    if (c.type === 'color') return `  ${c.key}: 0x${(val as number).toString(16).padStart(6, '0')}`;
-    if (c.type === 'toggle') return `  ${c.key}: ${Boolean(val)}`;
-    return `  ${c.key}: ${val}`;
-  });
-  return `VANTA.${effectId}({\n  el: "${selector}",\n  mouseControls: true,\n  touchControls: true,\n  gyroControls: false,\n${lines.join(',\n')}\n});`;
-}
+/* ══════════════════════════════════════════════════════
+   BUILD INJECT CODE
+══════════════════════════════════════════════════════ */
+function buildVantaCode(effect: Effect, params: Record<string, any>, selector: string): string {
+  const libSrc = effect.lib === 'p5' ? P5_CDN : THREE_CDN;
 
-function buildInitScript(code: string): string {
-  return `(function() {
-  function initVanta() {
-${code.split('\n').map(line => `    ${line}`).join('\n')}
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVanta);
-  } else {
-    initVanta();
-  }
-})();`;
-}
-
-/* ─── Colours ─── */
-const ACCENT = '#a855f7';
-const ACCENT2 = '#f107a3';
-const BG = '#141416';
-const HDR = '#1a1a1c';
-const BORDER = '#2a2a2a';
-const TEXT = '#ccc';
-
-/* ─── Main Component ─── */
-const VantaEditor: React.FC = () => {
-  const { files, activeFileId, updateFileContent, showNotification, selectedSelector } = useEditorStore();
-
-  const htmlFile = getTargetHtmlFile(files, activeFileId);
-  const jsFile   = getTargetJsFile(files, activeFileId);
-  const selectors = useMemo(() => htmlFile ? parseSelectors(htmlFile.content) : ['body'], [htmlFile?.content]);
-
-  const [effectId, setEffectId]       = useState('NET');
-  const [selector, setSelector]       = useState('body');
-  const [props, setProps]             = useState<Record<string, any>>({});
-  const [showCode, setShowCode]       = useState(false);
-  const [codeCopied, setCodeCopied]   = useState(false);
-  const [appliedMsg, setAppliedMsg]   = useState(false);
-  const [selectorOpen, setSelectorOpen] = useState(false);
-  const [previewKey, setPreviewKey]   = useState(0);
-  const [previewSrc, setPreviewSrc]   = useState('');
-
-  const def = useMemo(() => EFFECTS.find(e => e.id === effectId)!, [effectId]);
-
-  /* Reset props when effect changes */
-  useEffect(() => {
-    setProps(buildDefaults(def));
-  }, [effectId]);
-
-  /* Rebuild preview srcdoc (debounced) */
-  const previewDebRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (previewDebRef.current) clearTimeout(previewDebRef.current);
-    previewDebRef.current = setTimeout(() => {
-      setPreviewSrc(buildPreviewDoc(effectId, props, def));
-    }, 300);
-    return () => { if (previewDebRef.current) clearTimeout(previewDebRef.current); };
-  }, [props, effectId]);
-
-  const setProp = (key: string, value: any) => setProps(prev => ({ ...prev, [key]: value }));
-
-  const resetProps = () => setProps(buildDefaults(def));
-
-  /* Inject live preview into HTML (debounced) */
-  const htmlDebRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const injectPreview = useCallback(() => {
-    if (!htmlFile) return;
-    if (htmlDebRef.current) clearTimeout(htmlDebRef.current);
-    htmlDebRef.current = setTimeout(() => {
-      const code = generateInitCode(effectId, selector, props, def);
-      const libScript = def.lib === 'p5'
-        ? `<script src="${P5_CDN}"></script>`
-        : `<script src="${THREE_CDN}"></script>`;
-      const scriptBlock = `${libScript}\n<script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>\n<script>\n${buildInitScript(code)}\n</script>`;
-      let html = htmlFile.content;
-      html = html.replace(/\n?<!-- vanta-preview-start -->[\s\S]*?<!-- vanta-preview-end -->/g, '');
-      html = insertBeforeClosingTag(html, 'body', `\n<!-- vanta-preview-start -->\n${scriptBlock}\n<!-- vanta-preview-end -->`);
-      updateFileContent(htmlFile.id, html);
-    }, 800);
-  }, [htmlFile, effectId, selector, props, def, updateFileContent]);
-
-  const clearPreview = () => {
-    if (!htmlFile) return;
-    if (htmlDebRef.current) clearTimeout(htmlDebRef.current);
-    const cleaned = htmlFile.content.replace(/\n?<!-- vanta-preview-start -->[\s\S]*?<!-- vanta-preview-end -->/g, '');
-    updateFileContent(htmlFile.id, cleaned);
-    showNotification('Vanta preview removed');
-  };
-
-  const applyToProject = () => {
-    if (!htmlFile) { showNotification('No HTML file found'); return; }
-    let html = htmlFile.content;
-    html = html.replace(/\n?<!-- vanta-preview-start -->[\s\S]*?<!-- vanta-preview-end -->/g, '');
-    const libScript = def.lib === 'p5' ? P5_CDN : THREE_CDN;
-    const effectCdn = `${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js`;
-    if (!html.includes(libScript.split('/').pop()!)) {
-      html = insertBeforeClosingTag(html, 'head', `  <script src="${libScript}"></script>`);
-    }
-    if (!html.includes(`vanta.${effectId.toLowerCase()}`)) {
-      html = insertBeforeClosingTag(html, 'head', `  <script src="${effectCdn}"></script>`);
-    }
-    updateFileContent(htmlFile.id, html);
-    const code = generateInitCode(effectId, selector, props, def);
-    const block = `\n\n/* ── Vanta.js ${effectId} on "${selector}" ── */\ndocument.addEventListener('DOMContentLoaded', function() {\n${code}\n});`;
-    if (jsFile) {
-      const existing = jsFile.content;
-      const marker = `/* ── Vanta.js`;
-      const cut = existing.indexOf('\n\n' + marker);
-      const wrapped = `\n\n/* ── Vanta.js ${effectId} on "${selector}" ── */\n${buildInitScript(code)}`;
-      updateFileContent(jsFile.id, cut !== -1 ? existing.slice(0, cut) + wrapped : existing + wrapped);
+  const configLines: string[] = [];
+  effect.params.forEach(p => {
+    const val = params[p.key] ?? p.defaultVal;
+    if (p.type === 'color') {
+      configLines.push(`        ${p.key}: ${hexToNum(val as string)},`);
+    } else if (p.type === 'toggle') {
+      configLines.push(`        ${p.key}: ${val},`);
     } else {
-      const withScript = insertBeforeClosingTag(html, 'body', `\n<script>\n${buildInitScript(code)}\n</script>`);
-      updateFileContent(htmlFile.id, withScript);
+      configLines.push(`        ${p.key}: ${val},`);
     }
-    setAppliedMsg(true);
-    showNotification(`✦ Vanta ${effectId} applied to "${selector}"`);
-    setTimeout(() => setAppliedMsg(false), 2200);
-  };
+  });
 
-  const copyCode = () => {
-    const code = generateInitCode(effectId, selector, props, def);
-    navigator.clipboard.writeText(code).then(() => { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1500); });
-  };
+  return `\n<!-- Vanta.js ${effect.id} Effect -->
+<script src="${libSrc}"></script>
+<script src="${VANTA_BASE}/vanta.${effect.id.toLowerCase()}.min.js"></script>
+<script>
+(function(){
+  function initVanta(){
+    if(window.VANTA && VANTA.${effect.id}){
+      VANTA.${effect.id}({
+        el: "${selector}",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+${configLines.join('\n')}
+      });
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initVanta);
+  else initVanta();
+})();
+</script>`;
+}
 
-  const code = generateInitCode(effectId, selector, props, def);
+/* ══════════════════════════════════════════════════════
+   SELECTOR FROM SELECTED ELEMENT (visual mode)
+══════════════════════════════════════════════════════ */
+function buildSelector(sel: { tagName: string; id: string; className: string } | null): string {
+  if (!sel) return 'body';
+  if (sel.id) return `#${sel.id}`;
+  if (sel.className) return `.${sel.className.trim().split(/\s+/)[0]}`;
+  return sel.tagName.toLowerCase() || 'body';
+}
+
+/* ══════════════════════════════════════════════════════
+   PARSE HTML → ELEMENT SELECTOR OPTIONS
+══════════════════════════════════════════════════════ */
+interface SelectorOption {
+  value: string;
+  label: string;
+  tag: string;
+  type: 'body' | 'id' | 'class' | 'tag';
+}
+
+function parseHtmlSelectors(html: string): SelectorOption[] {
+  const results: SelectorOption[] = [
+    { value: 'body', label: 'body', tag: 'body', type: 'body' },
+  ];
+
+  // Collect id= attributes with surrounding tag name
+  const idRe = /<(\w+)[^>]*\sid=["']([^"']+)["'][^>]*>/gi;
+  const seenIds = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = idRe.exec(html)) !== null) {
+    const tag = m[1].toLowerCase();
+    const ids = m[2].trim().split(/\s+/);
+    for (const id of ids) {
+      if (id && !seenIds.has(id)) {
+        seenIds.add(id);
+        results.push({ value: `#${id}`, label: `#${id}`, tag, type: 'id' });
+      }
+    }
+  }
+
+  // Collect class= attributes with surrounding tag name
+  const clsRe = /<(\w+)[^>]*\sclass=["']([^"']+)["'][^>]*>/gi;
+  const seenClasses = new Set<string>();
+  while ((m = clsRe.exec(html)) !== null) {
+    const tag = m[1].toLowerCase();
+    const classes = m[2].trim().split(/\s+/);
+    for (const cls of classes) {
+      if (cls && !seenClasses.has(cls) && !/[:{]/.test(cls)) {
+        seenClasses.add(cls);
+        results.push({ value: `.${cls}`, label: `.${cls}`, tag, type: 'class' });
+      }
+    }
+  }
+
+  // Collect semantic/structural tags (unique)
+  const SEMANTIC = ['header','nav','main','section','article','aside','footer','div','hero','h1','h2','h3','p','ul','ol','li','a','button','form','input','table'];
+  const tagRe = /<([\w-]+)[\s>]/gi;
+  const seenTags = new Set<string>(['html','head','body','meta','link','script','style','title','br','hr','img','span']);
+  while ((m = tagRe.exec(html)) !== null) {
+    const tag = m[1].toLowerCase();
+    if (!seenTags.has(tag) && SEMANTIC.includes(tag)) {
+      seenTags.add(tag);
+      results.push({ value: tag, label: tag, tag, type: 'tag' });
+    }
+  }
+
+  return results;
+}
+
+/* ══════════════════════════════════════════════════════
+   CUSTOM SELECTOR DROPDOWN
+══════════════════════════════════════════════════════ */
+const TYPE_COLORS: Record<string, string> = {
+  body:  '#e5a45a',
+  id:    '#60a5fa',
+  class: '#a78bfa',
+  tag:   '#4ec98e',
+};
+
+function SelectorDropdown({
+  options, value, onChange,
+}: { options: SelectorOption[]; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = options.find(o => o.value === value) || options[0];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: BG, color: TEXT, fontFamily: "'Inter', -apple-system, sans-serif", fontSize: 12, overflow: 'hidden' }}>
+    <div ref={ref} style={{ position: 'relative', flex: 1 }}>
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 7,
+          padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+          background: 'linear-gradient(180deg,#2e2e36 0%,#252530 100%)',
+          border: `1px solid ${open ? SK.amberBrd : 'rgba(255,255,255,0.1)'}`,
+          boxShadow: open
+            ? `inset 0 2px 4px rgba(0,0,0,0.5),0 0 0 2px rgba(229,164,90,0.15)`
+            : SHADOW_SUNKEN,
+          color: SK.text, fontFamily: 'inherit', transition: 'all 0.12s',
+        }}
+      >
+        {/* Type badge */}
+        <span style={{
+          fontSize: 9, fontWeight: 800, letterSpacing: '0.05em',
+          color: TYPE_COLORS[selected?.type ?? 'body'],
+          background: `${TYPE_COLORS[selected?.type ?? 'body']}18`,
+          border: `1px solid ${TYPE_COLORS[selected?.type ?? 'body']}40`,
+          borderRadius: 4, padding: '1px 5px', flexShrink: 0, textTransform: 'uppercase',
+        }}>{selected?.type ?? 'body'}</span>
 
-      {/* ── Header ── */}
-      <div style={{ padding: '8px 12px 7px', flexShrink: 0, background: HDR, borderBottom: `1px solid ${BORDER}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 22, height: 22, borderRadius: 5, background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: '#fff', flexShrink: 0 }}>V</div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#e5e5e5', lineHeight: 1 }}>Vanta.js</div>
-            <div style={{ fontSize: 9, color: '#555', marginTop: 1 }}>Animated WebGL backgrounds · vantajs.com</div>
-          </div>
-          <div style={{ flex: 1 }} />
-          <a href="https://www.vantajs.com" target="_blank" rel="noreferrer" title="vantajs.com"
-            style={{ color: '#555', display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, textDecoration: 'none' }}
-            onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
-            onMouseLeave={e => (e.currentTarget.style.color = '#555')}>
-            <FiExternalLink size={10} /> docs
-          </a>
-          <button onClick={clearPreview} title="Remove preview from page"
-            style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 4, cursor: 'pointer', color: '#555', padding: '2px 7px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#555')}>
-            <FiRefreshCw size={9} /> Clear
-          </button>
-          <button onClick={() => setShowCode(p => !p)}
-            style={{ background: showCode ? 'rgba(168,85,247,0.12)' : 'none', border: `1px solid ${showCode ? ACCENT + '55' : '#2a2a2a'}`, borderRadius: 4, cursor: 'pointer', color: showCode ? ACCENT : '#555', padding: '2px 7px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-            <FiCode size={9} /> Code
-          </button>
-        </div>
-      </div>
+        <code style={{ flex: 1, textAlign: 'left', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: TYPE_COLORS[selected?.type ?? 'body'], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected?.value ?? 'body'}
+        </code>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* ── Live Preview (fills available space) ── */}
-        <div style={{ flex: 1, position: 'relative', background: '#0a0a0c', borderBottom: `1px solid ${BORDER}`, minHeight: 120 }}>
-          {previewSrc && (
-            <iframe
-              key={previewKey}
-              srcDoc={previewSrc}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              sandbox="allow-scripts"
-              title="Vanta preview"
-            />
-          )}
-          {/* Preview label overlay */}
-          <div style={{ position: 'absolute', top: 6, right: 8, display: 'flex', gap: 4, pointerEvents: 'none' }}>
-            <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 3, background: 'rgba(0,0,0,0.6)', color: '#888', fontWeight: 600 }}>LIVE PREVIEW</span>
-            <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 3, background: def.lib === 'p5' ? 'rgba(229,164,90,0.3)' : 'rgba(168,85,247,0.3)', color: def.lib === 'p5' ? '#e5a45a' : ACCENT, fontWeight: 600 }}>
-              {def.lib === 'p5' ? 'p5.js' : 'three.js'}
-            </span>
-          </div>
-          {/* Refresh preview button */}
-          <button onClick={() => setPreviewKey(k => k + 1)}
-            title="Restart preview"
-            style={{ position: 'absolute', bottom: 6, right: 8, background: 'rgba(0,0,0,0.6)', border: '1px solid #333', borderRadius: 4, cursor: 'pointer', color: '#666', padding: '2px 5px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#ccc')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#666')}>
-            <FiRefreshCw size={8} />
-          </button>
-          {/* Inject into page button */}
-          <button onClick={injectPreview}
-            title="Preview in your HTML page"
-            style={{ position: 'absolute', bottom: 6, right: 50, background: `rgba(168,85,247,0.15)`, border: `1px solid ${ACCENT}55`, borderRadius: 4, cursor: 'pointer', color: ACCENT, padding: '2px 7px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <FiExternalLink size={8} /> In Page
-          </button>
-          {/* Effect label bottom-left */}
-          <div style={{ position: 'absolute', bottom: 6, left: 8, pointerEvents: 'none' }}>
-            <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 3, background: 'rgba(0,0,0,0.6)', color: ACCENT, fontWeight: 600 }}>{def.emoji} {def.label}</span>
-          </div>
-        </div>
-
-        <div style={{ padding: '10px 10px 0', overflowY: 'auto', flexShrink: 0, maxHeight: '55%' }}>
-
-          {/* ── Target Selector ── */}
-          <div style={{ marginBottom: 10, position: 'relative' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>Target Element</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <div style={{ flex: 1, position: 'relative' }}>
-                <button onClick={() => setSelectorOpen(p => !p)}
-                  style={{ width: '100%', background: '#111', border: `1px solid ${selectorOpen ? ACCENT + '55' : BORDER}`, borderRadius: 4, padding: '5px 8px', textAlign: 'left', cursor: 'pointer', color: ACCENT, fontSize: 11, fontFamily: 'monospace', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>{selector}</span>
-                  <FiChevronDown size={11} style={{ color: '#666', flexShrink: 0 }} />
-                </button>
-                {selectorOpen && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1c', border: `1px solid ${BORDER}`, borderRadius: 4, zIndex: 50, maxHeight: 150, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.6)', marginTop: 2 }}>
-                    {selectors.map(s => (
-                      <div key={s} onClick={() => { setSelector(s); setSelectorOpen(false); }}
-                        style={{ padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'monospace', color: s === selector ? ACCENT : TEXT, background: s === selector ? '#2a1f30' : 'transparent' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = '#222'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = s === selector ? '#2a1f30' : 'transparent'; }}>
-                        {s}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {selectedSelector && (
-                <button onClick={() => { setSelector(selectedSelector); setSelectorOpen(false); }}
-                  title={`Use selected: ${selectedSelector}`}
-                  style={{ padding: '5px 8px', background: 'rgba(168,85,247,0.1)', border: `1px solid ${ACCENT}44`, borderRadius: 4, cursor: 'pointer', color: ACCENT, fontSize: 9, whiteSpace: 'nowrap' }}>
-                  ⊕ Use
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* ── Controls ── */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>Properties</span>
-              <button onClick={resetProps} title="Reset to defaults"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#444', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#888')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#444')}>
-                <FiRefreshCw size={9} /> reset
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {def.controls.map(ctrl => {
-                const val = props[ctrl.key] ?? ctrl.defaultVal;
-                if (ctrl.type === 'color') {
-                  const hexVal = numToHex(val as number);
-                  return (
-                    <div key={ctrl.key} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', border: `1px solid ${BORDER}`, borderRadius: 4, padding: '5px 8px' }}>
-                      <div style={{ position: 'relative', width: 24, height: 24, flexShrink: 0 }}>
-                        <div style={{ width: 24, height: 24, borderRadius: 4, background: hexVal, border: '1px solid #333', cursor: 'pointer' }} onClick={() => (document.getElementById(`vc-${ctrl.key}`) as HTMLInputElement)?.click()} />
-                        <input id={`vc-${ctrl.key}`} type="color" value={hexVal}
-                          onChange={e => setProp(ctrl.key, hexToNum(e.target.value))}
-                          style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} />
-                      </div>
-                      <span style={{ flex: 1, fontSize: 11, color: '#bbb' }}>{ctrl.label}</span>
-                      <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#555' }}>0x{(val as number).toString(16).padStart(6, '0').toUpperCase()}</span>
-                    </div>
-                  );
-                }
-                if (ctrl.type === 'toggle') {
-                  return (
-                    <div key={ctrl.key} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', border: `1px solid ${BORDER}`, borderRadius: 4, padding: '5px 8px' }}>
-                      <span style={{ flex: 1, fontSize: 11, color: '#bbb' }}>{ctrl.label}</span>
-                      <div onClick={() => setProp(ctrl.key, !val)}
-                        style={{ width: 32, height: 17, borderRadius: 9, background: val ? ACCENT : '#2a2a2a', border: `1px solid ${val ? ACCENT : '#3a3a3a'}`, cursor: 'pointer', position: 'relative', transition: 'background 0.15s' }}>
-                        <div style={{ width: 11, height: 11, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: val ? 17 : 2, transition: 'left 0.15s' }} />
-                      </div>
-                      <span style={{ fontSize: 10, color: val ? ACCENT : '#444', fontWeight: 600, minWidth: 24 }}>{val ? 'ON' : 'OFF'}</span>
-                    </div>
-                  );
-                }
-                // range
-                const pct = ctrl.min !== undefined && ctrl.max !== undefined ? ((val - ctrl.min) / (ctrl.max - ctrl.min)) * 100 : 0;
-                return (
-                  <div key={ctrl.key} style={{ background: '#111', border: `1px solid ${BORDER}`, borderRadius: 4, padding: '5px 8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span style={{ fontSize: 11, color: '#bbb' }}>{ctrl.label}</span>
-                      <span style={{ fontSize: 10, fontFamily: 'monospace', color: ACCENT, background: 'rgba(168,85,247,0.1)', padding: '1px 5px', borderRadius: 3 }}>{val}</span>
-                    </div>
-                    <div style={{ position: 'relative', height: 4, borderRadius: 2, background: '#2a2a2a' }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${ACCENT},${ACCENT2})`, borderRadius: 2 }} />
-                      <input type="range" min={ctrl.min} max={ctrl.max} step={ctrl.step} value={val}
-                        onChange={e => setProp(ctrl.key, parseFloat(e.target.value))}
-                        style={{ position: 'absolute', inset: 0, width: '100%', opacity: 0, cursor: 'pointer', height: '100%', margin: 0 }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                      <span style={{ fontSize: 8, color: '#444' }}>{ctrl.min}</span>
-                      <span style={{ fontSize: 8, color: '#444' }}>{ctrl.max}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Code Panel ── */}
-          {showCode && (
-            <div style={{ marginBottom: 10, background: '#0d0d0f', border: `1px solid ${BORDER}`, borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', borderBottom: `1px solid ${BORDER}`, background: '#111' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>Generated Code</span>
-                <button onClick={copyCode} style={{ background: 'none', border: '1px solid #2a2a2a', borderRadius: 3, padding: '1px 6px', cursor: 'pointer', color: codeCopied ? '#88ce02' : '#555', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {codeCopied ? <><FiCheck size={8} /> Copied!</> : <><FiCopy size={8} /> Copy</>}
-                </button>
-              </div>
-              <pre style={{ margin: 0, padding: '8px 10px', fontSize: 9, color: ACCENT, fontFamily: 'monospace', lineHeight: 1.6, overflowX: 'auto', whiteSpace: 'pre' }}>{code}</pre>
-              <div style={{ padding: '6px 10px', borderTop: `1px solid ${BORDER}`, background: '#0d0d0f' }}>
-                <div style={{ fontSize: 8, color: '#444', marginBottom: 3 }}>CDN scripts needed in your HTML:</div>
-                <pre style={{ margin: 0, fontSize: 8, color: '#666', fontFamily: 'monospace', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-{`<script src="${def.lib === 'p5' ? P5_CDN : THREE_CDN}"></script>
-<script src="${VANTA_BASE}/vanta.${effectId.toLowerCase()}.min.js"></script>`}
-                </pre>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      {/* ── Footer ── */}
-      <div style={{ padding: '8px 10px', flexShrink: 0, background: HDR, borderTop: `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 9, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {def.emoji} <span style={{ color: ACCENT }}>{def.label}</span> → <span style={{ color: '#e5a45a', fontFamily: 'monospace' }}>{selector}</span>
-            </div>
-          </div>
-          <button onClick={applyToProject}
-            style={{
-              padding: '6px 14px', flexShrink: 0,
-              background: appliedMsg ? 'rgba(78,201,176,0.12)' : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
-              border: appliedMsg ? '1px solid rgba(78,201,176,0.35)' : '1px solid transparent',
-              borderRadius: 5, cursor: 'pointer',
-              color: appliedMsg ? '#4ec9b0' : '#fff',
-              fontSize: 11, fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: 5,
-              transition: 'all 0.2s',
-            }}>
-            {appliedMsg ? <><FiCheck size={11} /> Applied!</> : <><FiZap size={11} /> Apply to Project</>}
-          </button>
-        </div>
-        {selectedSelector && (
-          <button
-            onClick={() => {
-              setSelector(selectedSelector);
-              setTimeout(() => applyToProject(), 0);
-            }}
-            title={`Apply ${def.label} effect directly to selected element: ${selectedSelector}`}
-            style={{
-              width: '100%', padding: '6px 10px',
-              background: 'rgba(168,85,247,0.08)',
-              border: `1px solid ${ACCENT}55`,
-              borderRadius: 5, cursor: 'pointer',
-              color: ACCENT, fontSize: 11, fontWeight: 600,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(168,85,247,0.18)`; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(168,85,247,0.08)`; }}>
-            <FiZap size={11} />
-            Apply to Selected Element
-            <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#e5a45a', background: 'rgba(229,164,90,0.1)', padding: '1px 5px', borderRadius: 3, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedSelector}
-            </span>
-          </button>
+        {selected?.tag && selected.type !== 'body' && selected.type !== 'tag' && (
+          <span style={{ fontSize: 9, color: SK.textMuted, flexShrink: 0 }}>&lt;{selected.tag}&gt;</span>
         )}
+
+        <FiChevronDown size={11} color={SK.textMuted} style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+
+      {/* Dropdown list */}
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: '110%', left: 0, right: 0, zIndex: 9999,
+          background: '#1e1e26',
+          border: `1px solid ${SK.amberBrd}`,
+          borderRadius: 8,
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.7),0 0 0 1px rgba(229,164,90,0.08)',
+          maxHeight: 240, overflowY: 'auto',
+          padding: 4,
+        }}>
+          {/* Group header helper */}
+          {(['body', 'id', 'class', 'tag'] as const).map(grp => {
+            const items = options.filter(o => o.type === grp);
+            if (!items.length) return null;
+            const grpLabels: Record<string, string> = { body: 'Page', id: 'IDs', class: 'Classes', tag: 'Tags' };
+            return (
+              <div key={grp}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: TYPE_COLORS[grp], letterSpacing: '0.08em', textTransform: 'uppercase', padding: '5px 8px 2px' }}>
+                  {grpLabels[grp]}
+                </div>
+                {items.map(opt => {
+                  const active = opt.value === value;
+                  return (
+                    <div
+                      key={opt.value}
+                      onClick={() => { onChange(opt.value); setOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 8px', borderRadius: 5, cursor: 'pointer',
+                        background: active ? `${TYPE_COLORS[grp]}18` : 'transparent',
+                        border: `1px solid ${active ? `${TYPE_COLORS[grp]}40` : 'transparent'}`,
+                        marginBottom: 1, transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      <code style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: active ? TYPE_COLORS[grp] : SK.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {opt.value}
+                      </code>
+                      {opt.tag && opt.type !== 'body' && opt.type !== 'tag' && (
+                        <span style={{ fontSize: 9, color: SK.textMuted, flexShrink: 0 }}>&lt;{opt.tag}&gt;</span>
+                      )}
+                      {active && <div style={{ width: 5, height: 5, borderRadius: '50%', background: TYPE_COLORS[grp], boxShadow: `0 0 5px ${TYPE_COLORS[grp]}`, flexShrink: 0 }} />}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   BUTTON
+══════════════════════════════════════════════════════ */
+function Btn({ onClick, bg = BTN_RAISED, color = SK.text, border = SK.border, shadow = SHADOW_RAISED, title, disabled, children, style }: {
+  onClick: () => void; bg?: string; color?: string; border?: string; shadow?: string;
+  title?: string; disabled?: boolean; children: React.ReactNode; style?: React.CSSProperties;
+}) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title} style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+      padding: '5px 10px', borderRadius: 5, cursor: disabled ? 'not-allowed' : 'pointer',
+      background: disabled ? 'rgba(255,255,255,0.03)' : bg,
+      border: `1px solid ${border}`,
+      color: disabled ? SK.textMuted : color,
+      boxShadow: disabled ? 'none' : shadow,
+      fontSize: 11, fontFamily: 'inherit', fontWeight: 700,
+      letterSpacing: '0.03em', whiteSpace: 'nowrap',
+      opacity: disabled ? 0.45 : 1, transition: 'all 0.12s',
+      ...style,
+    }}>{children}</button>
+  );
+}
+
+/* ══════════════════════════════════════════════════════
+   SINGLE PARAM CONTROL
+══════════════════════════════════════════════════════ */
+function ParamControl({ param, value, onChange }: {
+  param: Param;
+  value: string | number | boolean;
+  onChange: (key: string, val: string | number | boolean) => void;
+}) {
+  if (param.type === 'color') {
+    const hex = value as string;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+        <span style={{ fontSize: 10, color: SK.textMuted, width: 90, flexShrink: 0, fontWeight: 600 }}>{param.label}</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', flex: 1 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <input type="color" value={hex} onChange={e => onChange(param.key, e.target.value)}
+              style={{ width: 30, height: 22, cursor: 'pointer', border: `1px solid ${SK.border}`, borderRadius: 4, padding: 1, background: 'rgba(0,0,0,0.4)', boxShadow: SHADOW_RAISED }} />
+          </div>
+          <code style={{ fontSize: 10, color: SK.textDim, fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '1px 5px', borderRadius: 3 }}>{hex}</code>
+        </label>
+      </div>
+    );
+  }
+
+  if (param.type === 'toggle') {
+    const checked = value as boolean;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+        <span style={{ fontSize: 10, color: SK.textMuted, width: 90, flexShrink: 0, fontWeight: 600 }}>{param.label}</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
+          <div
+            onClick={() => onChange(param.key, !checked)}
+            style={{
+              width: 32, height: 16, borderRadius: 8, cursor: 'pointer',
+              background: checked ? SK.amber : 'rgba(255,255,255,0.1)',
+              border: `1px solid ${checked ? SK.amberBrd : SK.border}`,
+              position: 'relative', transition: 'all 0.15s',
+              boxShadow: checked ? `0 0 6px ${SK.amberBrd}` : SHADOW_SUNKEN,
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 2, left: checked ? 16 : 2,
+              width: 10, height: 10, borderRadius: '50%',
+              background: checked ? '#fff' : SK.textMuted,
+              transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+            }} />
+          </div>
+          <span style={{ fontSize: 10, color: checked ? SK.amber : SK.textMuted }}>{checked ? 'On' : 'Off'}</span>
+        </label>
+      </div>
+    );
+  }
+
+  if (param.type === 'range' || param.type === 'int') {
+    const num = value as number;
+    return (
+      <div style={{ padding: '3px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+          <span style={{ fontSize: 10, color: SK.textMuted, fontWeight: 600 }}>{param.label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input
+              type="number"
+              value={num}
+              min={param.min}
+              max={param.max}
+              step={param.step}
+              onChange={e => onChange(param.key, parseFloat(e.target.value) || 0)}
+              style={{
+                width: 48, fontSize: 10, fontFamily: 'monospace', fontWeight: 700,
+                color: SK.amber, background: 'rgba(0,0,0,0.4)',
+                border: `1px solid ${SK.border}`, borderRadius: 3,
+                padding: '1px 4px', textAlign: 'right',
+                boxShadow: SHADOW_SUNKEN,
+              }}
+            />
+          </div>
+        </div>
+        <input
+          type="range"
+          min={param.min} max={param.max} step={param.step}
+          value={num}
+          onChange={e => onChange(param.key, parseFloat(e.target.value))}
+          style={{ width: '100%', accentColor: SK.amber, cursor: 'pointer', height: 3 }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1 }}>
+          <span style={{ fontSize: 9, color: SK.textMuted }}>{param.min}</span>
+          <span style={{ fontSize: 9, color: SK.textMuted }}>{param.max}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════════ */
+const VantaEditor: React.FC = () => {
+  const { files, activeFileId, updateFileContent, showNotification, selectedElement } = useEditorStore();
+  const htmlFile = getTargetHtmlFile(files, activeFileId);
+
+  const [selectedEffect, setSelectedEffect] = useState(EFFECTS[0]);
+  const [params, setParams]                 = useState<Record<string, any>>(() => defaultParams(EFFECTS[0]));
+  const [tab, setTab]                       = useState<'effects' | 'config'>('effects');
+  const [copied,       setCopied]           = useState(false);
+  const [appliedMsg,   setAppliedMsg]       = useState(false);
+  const [chosenSel,    setChosenSel]        = useState('body');
+
+  // Parse HTML elements whenever the file changes
+  const selectorOptions = useMemo(() => {
+    if (!htmlFile?.content) return [{ value: 'body', label: 'body', tag: 'body', type: 'body' as const }];
+    return parseHtmlSelectors(htmlFile.content);
+  }, [htmlFile?.content]);
+
+  // Keep chosenSel valid when file changes
+  useEffect(() => {
+    if (!selectorOptions.find(o => o.value === chosenSel)) setChosenSel('body');
+  }, [selectorOptions]);
+
+  // Auto-sync visual-mode selection into dropdown
+  useEffect(() => {
+    if (!selectedElement) return;
+    const autoSel = buildSelector(selectedElement as any);
+    if (selectorOptions.find(o => o.value === autoSel)) setChosenSel(autoSel);
+  }, [selectedElement, selectorOptions]);
+
+  useEffect(() => {
+    setParams(defaultParams(selectedEffect));
+  }, [selectedEffect]);
+
+  const preview = useMemo(
+    () => buildPreview(selectedEffect, params),
+    [selectedEffect, params]
+  );
+
+  const setProp = useCallback((key: string, val: string | number | boolean) => {
+    setParams(prev => ({ ...prev, [key]: val }));
+  }, []);
+
+  const inject = useCallback(() => {
+    if (!htmlFile) { showNotification('No HTML file found'); return; }
+    try {
+      const code = buildVantaCode(selectedEffect, params, chosenSel);
+      const newContent = insertBeforeClosingTag(htmlFile.content, 'body', code);
+      updateFileContent(htmlFile.id, newContent);
+      setAppliedMsg(true);
+      showNotification(`✦ Vanta ${selectedEffect.label} → ${chosenSel}`);
+      setTimeout(() => setAppliedMsg(false), 2400);
+    } catch {
+      showNotification('Could not insert Vanta code');
+    }
+  }, [htmlFile, selectedEffect, params, chosenSel, updateFileContent, showNotification]);
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(buildVantaCode(selectedEffect, params, chosenSel)).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const resetParams = () => setParams(defaultParams(selectedEffect));
+
+  /* ── Render ── */
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: SK.bg, color: SK.text, fontFamily: "'Inter',-apple-system,sans-serif", overflow: 'hidden', fontSize: 12 }}>
+
+      {/* ── TOOLBAR ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px',
+        height: 34, flexShrink: 0,
+        background: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+        borderBottom: `1px solid ${SK.border}`,
+        boxShadow: '0 1px 0 rgba(255,255,255,0.07),0 2px 6px rgba(0,0,0,0.4)',
+      }}>
+        <FiZap size={11} color={SK.amber} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: SK.amber, letterSpacing: '0.05em', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>VANTA JS</span>
+        <span style={{ fontSize: 10, color: SK.textMuted }}>— {selectedEffect.emoji} {selectedEffect.label}</span>
+        <div style={{ flex: 1 }} />
+        <Btn onClick={resetParams} title="Reset to defaults" style={{ padding: '3px 7px', fontSize: 9 }}>Reset</Btn>
+        <Btn onClick={copyCode} title="Copy inject code" style={{ padding: '3px 8px', fontSize: 10 }}>
+          {copied ? <><FiCheck size={10} color={SK.green} /> Copied</> : <><FiCopy size={10} /> Copy</>}
+        </Btn>
+      </div>
+
+      {/* ── PREVIEW ── */}
+      <div style={{ height: 160, flexShrink: 0, position: 'relative', background: '#0a0a0a', borderBottom: `1px solid ${SK.border}` }}>
+        <iframe
+          key={JSON.stringify({ id: selectedEffect.id, ...params })}
+          srcDoc={preview}
+          sandbox="allow-scripts allow-same-origin"
+          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+        />
+        <div style={{
+          position: 'absolute', top: 7, left: 7,
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+          padding: '4px 9px', fontSize: 11, fontWeight: 700, color: SK.text,
+          pointerEvents: 'none',
+        }}>
+          {selectedEffect.emoji} {selectedEffect.label}
+          <span style={{ marginLeft: 5, fontSize: 9, color: SK.textMuted }}>{selectedEffect.lib}.js</span>
+        </div>
+        {/* Live indicator */}
+        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.5)', borderRadius: 5, padding: '2px 6px' }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: SK.green, boxShadow: `0 0 6px ${SK.green}` }} />
+          <span style={{ fontSize: 9, color: SK.green, fontWeight: 700 }}>LIVE</span>
+        </div>
+      </div>
+
+      {/* ── TABS ── */}
+      <div style={{ display: 'flex', flexShrink: 0, background: SK.surface, borderBottom: `1px solid ${SK.border}` }}>
+        {([
+          ['effects', <FiEye size={10} />, 'Effects'],
+          ['config',  <FiSettings size={10} />, 'Config'],
+        ] as const).map(([id, icon, label]) => {
+          const active = tab === id;
+          return (
+            <button key={id} onClick={() => setTab(id as any)} style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              padding: '7px 0', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: active ? SK.surface2 : 'transparent',
+              color: active ? SK.amber : SK.textMuted,
+              borderBottom: `2px solid ${active ? SK.amber : 'transparent'}`,
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+              transition: 'all 0.12s',
+            }}>
+              {icon} {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── TAB: EFFECTS ── */}
+      {tab === 'effects' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+            {EFFECTS.map(effect => {
+              const active = selectedEffect.id === effect.id;
+              return (
+                <div
+                  key={effect.id}
+                  onClick={() => setSelectedEffect(effect)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 9px',
+                    borderRadius: 6, cursor: 'pointer',
+                    background: active ? SK.amberDim : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${active ? SK.amberBrd : 'rgba(255,255,255,0.05)'}`,
+                    boxShadow: active ? `0 2px 8px rgba(229,164,90,0.1),inset 0 1px 0 rgba(255,255,255,0.06)` : 'none',
+                    transition: 'all 0.12s',
+                  }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{effect.emoji}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? SK.amber : SK.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {effect.label}
+                    </div>
+                    <div style={{ fontSize: 9, color: SK.textMuted, marginTop: 1 }}>{effect.lib}.js</div>
+                  </div>
+                  {active && <div style={{ width: 5, height: 5, borderRadius: '50%', background: SK.amber, boxShadow: `0 0 6px ${SK.amber}`, flexShrink: 0, marginLeft: 'auto' }} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: CONFIG ── */}
+      {tab === 'config' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: SK.textMuted, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '2px 0 6px', textShadow: '0 1px 1px rgba(0,0,0,0.5)' }}>
+            {selectedEffect.emoji} {selectedEffect.label} — Options
+          </div>
+          {selectedEffect.params.map(p => (
+            <ParamControl key={p.key} param={p} value={params[p.key] ?? p.defaultVal} onChange={setProp} />
+          ))}
+        </div>
+      )}
+
+      {/* ── TARGET SELECTOR + APPLY ── */}
+      <div style={{
+        flexShrink: 0,
+        background: SK.surface,
+        borderTop: `1px solid ${SK.border}`,
+        boxShadow: '0 -2px 12px rgba(0,0,0,0.35)',
+      }}>
+
+        {/* Label row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px 4px' }}>
+          <FiTarget size={10} color={SK.amber} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: SK.amber, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            Target Element
+          </span>
+          <span style={{ fontSize: 9, color: SK.textMuted, marginLeft: 2 }}>
+            — {selectorOptions.length - 1} found
+          </span>
+          {selectedElement && (
+            <span style={{
+              marginLeft: 'auto', fontSize: 9, color: SK.purple,
+              background: SK.purpleDim, border: `1px solid ${SK.purpleBrd}`,
+              borderRadius: 4, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 3,
+            }}>
+              <FiMousePointer size={8} /> Visual
+            </span>
+          )}
+        </div>
+
+        {/* Dropdown row */}
+        <div style={{ padding: '0 10px 8px', display: 'flex', gap: 6, alignItems: 'center' }}>
+          <SelectorDropdown
+            options={selectorOptions}
+            value={chosenSel}
+            onChange={setChosenSel}
+          />
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0 10px' }} />
+
+        {/* Apply button */}
+        <div style={{ padding: '8px 10px' }}>
+          <button
+            onClick={inject}
+            disabled={!htmlFile}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '9px 14px', borderRadius: 7, cursor: !htmlFile ? 'not-allowed' : 'pointer',
+              background: appliedMsg
+                ? `linear-gradient(135deg,#14532d,#166534)`
+                : `linear-gradient(135deg,#5b21b6,#7c3aed,#6d28d9)`,
+              border: `1px solid ${appliedMsg ? 'rgba(78,201,142,0.5)' : 'rgba(167,139,250,0.5)'}`,
+              boxShadow: appliedMsg
+                ? '0 0 16px rgba(78,201,142,0.25),inset 0 1px 0 rgba(255,255,255,0.15)'
+                : '0 4px 16px rgba(109,40,217,0.35),inset 0 1px 0 rgba(255,255,255,0.15)',
+              color: '#fff', fontFamily: 'inherit', fontWeight: 800,
+              fontSize: 12, letterSpacing: '0.03em',
+              transition: 'all 0.18s', opacity: !htmlFile ? 0.4 : 1,
+            }}
+          >
+            {appliedMsg ? (
+              <><FiCheck size={13} color="#4ec98e" /> <span style={{ color: '#4ec98e' }}>Applied to </span><code style={{ fontFamily: 'monospace', fontSize: 11, color: '#4ec98e' }}>{chosenSel}</code></>
+            ) : (
+              <><FiZap size={13} /> Apply {selectedEffect.emoji} {selectedEffect.label} to <code style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(0,0,0,0.25)', padding: '0 5px', borderRadius: 3 }}>{chosenSel}</code></>
+            )}
+          </button>
+        </div>
+
       </div>
 
     </div>
