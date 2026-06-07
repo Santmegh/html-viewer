@@ -470,6 +470,7 @@
   font-size: 12px;
   color: var(--sku-text-muted);
   border: none;
+  border-top: none;
   border-right: 1px solid rgba(0,0,0,0.4);
   background: var(--metal-panel);
   white-space: nowrap;

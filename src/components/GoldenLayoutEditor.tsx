@@ -373,8 +373,8 @@ const GoldenLayoutEditor = forwardRef<GoldenLayoutEditorHandle, GoldenLayoutEdit
         document.head.appendChild(glStyle);
       }
       glStyle.textContent = `
-        .lm_header .lm_tab { border-top: 2px solid transparent !important; border-bottom: 2px solid transparent !important; }
-        .lm_header .lm_tab.lm_active { border-top: 2px solid transparent !important; border-top-color: transparent !important; border-bottom: 2px solid #e5a45a !important; }
+        .lm_header .lm_tab { border-top: 2px solid transparent !important; border-bottom: none !important; }
+        .lm_header .lm_tab.lm_active { border-top: 2px solid transparent !important; border-bottom: none !important; }
       `;
 
       /* Auto-save on every state change (debounced to avoid excessive writes) */

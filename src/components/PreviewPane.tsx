@@ -205,6 +205,7 @@ const PreviewPane: React.FC = () => {
   const lastSrcDocRef = useRef<string>('');
 
   const scheduleRebuild = useCallback((forceRemount = false) => {
+    if (!livePreviewEnabled && !forceRemount) return;
     if (rebuildTimerRef.current) clearTimeout(rebuildTimerRef.current);
     rebuildTimerRef.current = setTimeout(() => {
       const newDoc = buildSrcDoc();
@@ -225,7 +226,7 @@ const PreviewPane: React.FC = () => {
       if (forceRemount) setIframeKey(k => k + 1);
       setSrcDoc(newDoc);
     }, 400);
-  }, [buildSrcDoc]);
+  }, [buildSrcDoc, livePreviewEnabled]);
 
   const openInBrowser = useCallback(() => {
     const html = buildSrcDoc();
@@ -255,8 +256,9 @@ const PreviewPane: React.FC = () => {
   // When switching to a page tab, reload
   useEffect(() => {
     if (activeTab?.previewType !== 'page') return;
+    if (!livePreviewEnabled) return;
     scheduleRebuild();
-  }, [activePreviewTabId, activeTab?.previewType, scheduleRebuild]);
+  }, [activePreviewTabId, activeTab?.previewType, scheduleRebuild, livePreviewEnabled]);
 
   const handleIframeLoad = () => {
     setLoading(false);
