@@ -28,33 +28,46 @@ import {
   FiFolder, FiSliders, FiClock, FiMonitor, FiBox, FiX, FiTerminal, FiZap,
 } from 'react-icons/fi';
 
-/* ─── Non-intrusive AdSense Banner ─── */
+/* ─── Non-intrusive Corner Ad Banner ─── */
 const EditorAdBanner: React.FC = () => {
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem('editor-ad-dismissed') === 'true'; } catch { return false; }
   });
+  const containerRef = useRef<HTMLDivElement>(null);
   const handleDismiss = () => {
     setDismissed(true);
     try { localStorage.setItem('editor-ad-dismissed', 'true'); } catch {}
   };
   useEffect(() => {
-    try {
-      const w = window as Window & { adsbygoogle?: unknown[] };
-      (w.adsbygoogle = w.adsbygoogle || []).push({});
-    } catch {}
-  }, []);
+    if (dismissed) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const w = window as Window & { atOptions?: object };
+    w.atOptions = {
+      key: 'bb79f6157e39f7e04c987ee47a1c5964',
+      format: 'iframe',
+      height: 50,
+      width: 320,
+      params: {},
+    };
+    const script = document.createElement('script');
+    script.src = 'https://www.highperformanceformat.com/bb79f6157e39f7e04c987ee47a1c5964/invoke.js';
+    script.async = true;
+    el.appendChild(script);
+    return () => {
+      try { el.removeChild(script); } catch {}
+    };
+  }, [dismissed]);
   if (dismissed) return null;
   return (
-    <div style={{ position: 'fixed', bottom: 30, right: 16, zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', maxWidth: 300 }}>
+    <div style={{ position: 'fixed', bottom: 30, right: 16, zIndex: 1400, background: '#1e1e1e', border: '1px solid #3e3e3e', borderRadius: 8, padding: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: 336 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 9, color: '#555', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Advertisement</span>
         <button onClick={handleDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 2 }}>
           <FiX size={12} />
         </button>
       </div>
-      <ins className="adsbygoogle" style={{ display: 'block' }}
-        data-ad-client="ca-pub-1826192920016393" data-ad-slot="7872622325"
-        data-ad-format="auto" data-full-width-responsive="true" />
+      <div ref={containerRef} style={{ width: 320, height: 50, overflow: 'hidden' }} />
     </div>
   );
 };
