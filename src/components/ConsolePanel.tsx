@@ -4,6 +4,15 @@ import { useEditorStore } from '../store/editorStore';
 
 type Methods = 'log' | 'debug' | 'info' | 'warn' | 'error' | 'table' | 'clear' | 'time' | 'timeEnd' | 'count' | 'assert' | 'command' | 'result' | 'dir';
 
+const SKU = {
+  hdr: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+  bar: 'linear-gradient(180deg,#222226 0%,#1e1e22 100%)',
+  btn: 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)',
+  abtn: 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)',
+  shadow_raised: 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)',
+  shadow_sunken: 'inset 0 2px 4px rgba(0,0,0,0.55)',
+};
+
 const ConsolePanel: React.FC = () => {
   const { consoleEntries, clearConsole } = useEditorStore();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -33,28 +42,32 @@ const ConsolePanel: React.FC = () => {
     <div style={{
       display: 'flex', flexDirection: 'column',
       height: '100%', width: '100%',
-      background: '#1e1e1e', color: '#ccc',
+      background: '#1e1e22', color: '#d8d8d8',
       fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace",
       fontSize: 12,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 4,
-        padding: '4px 8px', borderBottom: '1px solid #2d2d2d',
-        background: '#252526', flexShrink: 0,
+        padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.5)',
+        background: SKU.hdr, flexShrink: 0,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)', zIndex: 10,
       }}>
-        <span style={{ fontSize: 11, color: '#888', fontFamily: "'Inter', sans-serif", fontWeight: 600, marginRight: 4 }}>CONSOLE</span>
+        <span style={{ fontSize: 10, color: '#888', fontFamily: "'Inter', sans-serif", fontWeight: 700, marginRight: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>CONSOLE</span>
 
         {(['all', 'log', 'warn', 'error'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             style={{
-              padding: '2px 8px', fontSize: 10, borderRadius: 3, cursor: 'pointer',
-              fontFamily: "'Inter', sans-serif", fontWeight: 600, border: 'none',
-              background: filter === f ? 'rgba(100,160,255,0.15)' : 'transparent',
-              color: filter === f ? '#7ab8f5'
+              padding: '2px 9px', fontSize: 9, borderRadius: 6, cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif", fontWeight: 700, border: 'none',
+              background: filter === f ? SKU.abtn : SKU.btn,
+              color: filter === f ? '#1a0d00'
                 : f === 'error' && errCount > 0 ? '#f47171'
                 : f === 'warn' && warnCount > 0 ? '#e5a45a'
                 : '#666',
               textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              boxShadow: SKU.shadow_raised,
+              transition: 'all 0.1s',
             }}
           >
             {f}{f === 'error' && errCount > 0 ? ` (${errCount})` : ''}{f === 'warn' && warnCount > 0 ? ` (${warnCount})` : ''}
@@ -67,10 +80,13 @@ const ConsolePanel: React.FC = () => {
           onClick={() => setAutoScroll(v => !v)}
           title={autoScroll ? 'Disable auto-scroll' : 'Enable auto-scroll'}
           style={{
-            padding: '2px 7px', fontSize: 10, borderRadius: 3, cursor: 'pointer',
-            fontFamily: "'Inter', sans-serif", border: '1px solid transparent',
-            background: autoScroll ? 'rgba(100,180,100,0.12)' : 'transparent',
-            color: autoScroll ? '#7ecb7e' : '#555',
+            padding: '2px 9px', fontSize: 9, borderRadius: 6, cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif", fontWeight: 700, border: 'none',
+            background: autoScroll ? 'rgba(78,201,176,0.15)' : SKU.btn,
+            color: autoScroll ? '#4ec9b0' : '#666',
+            boxShadow: SKU.shadow_raised,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
           }}
         >↓ Auto</button>
 
@@ -78,16 +94,19 @@ const ConsolePanel: React.FC = () => {
           onClick={clearConsole}
           title="Clear console"
           style={{
-            padding: '2px 8px', fontSize: 10, borderRadius: 3, cursor: 'pointer',
-            fontFamily: "'Inter', sans-serif", border: '1px solid #3a3a3a',
-            background: 'transparent', color: '#888',
+            padding: '2px 9px', fontSize: 9, borderRadius: 6, cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif", fontWeight: 700, border: 'none',
+            background: SKU.btn, color: '#888',
+            boxShadow: SKU.shadow_raised,
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f47171'; (e.currentTarget as HTMLElement).style.borderColor = '#f47171'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#888'; (e.currentTarget as HTMLElement).style.borderColor = '#3a3a3a'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f47171'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#888'; }}
         >✕ Clear</button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', background: '#1e1e1e' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: '#1e1e22' }}>
         {messages.length === 0 ? (
           <div style={{ padding: '20px', color: '#444', textAlign: 'center', fontFamily: "'Inter', sans-serif", fontSize: 12 }}>
             {consoleEntries.length === 0

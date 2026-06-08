@@ -71,7 +71,8 @@ function normalizeAssetRef(ref: string): string {
 
 function refPattern(file: FileItem): string {
   const refs = Array.from(new Set([file.name, file.id, filePath(file)]));
-  return `(?:\\.?/|/)?(?:${refs.map(escapeRegExp).join('|')})(?:[?#][^"']*)?`;
+  // Match only whole strings or paths to avoid partial matches (e.g. logo.png matching header-logo.png)
+  return `(?:\\.?/|/)?\\b(?:${refs.map(escapeRegExp).join('|')})\\b(?:[?#][^"']*)?`;
 }
 
 export function insertBeforeClosingTag(html: string, tagName: 'head' | 'body', insertion: string): string {
@@ -83,18 +84,33 @@ export function insertBeforeClosingTag(html: string, tagName: 'head' | 'body', i
 export function buildProjectHtml(files: FileItem[], htmlFile: FileItem, extraHead = ''): string {
   let html = htmlFile.content;
 
-  files.filter(f => f.type === 'css').forEach(css => {
+  const cssFiles = files.filter(f => f.type === 'css');
+  const jsFiles = files.filter(f => f.type === 'js');
+
+  // Check if any CSS/JS are explicitly linked in the HTML
+  const hasCssLinks = cssFiles.some(css => new RegExp(`<link\\b[^>]*href=["']${refPattern(css)}["']`, 'i').test(html));
+  const hasJsLinks = jsFiles.some(js => new RegExp(`<script\\b[^>]*src=["']${refPattern(js)}["']`, 'i').test(html));
+
+  cssFiles.forEach(css => {
     const tag = `<style data-src="${css.id}">\n${safeInlineStyle(css.content)}\n</style>`;
     const re = new RegExp(`<link\\b[^>]*href=["']${refPattern(css)}["'][^>]*\\/?>`, 'gi');
-    if (re.test(html)) html = html.replace(re, tag);
-    else html = insertBeforeClosingTag(html, 'head', tag);
+    if (re.test(html)) {
+      html = html.replace(re, tag);
+    } else if (!hasCssLinks && (css.name === 'styles.css' || css.id === 'styles.css')) {
+      // Auto-inject default styles only if no other CSS is linked
+      html = insertBeforeClosingTag(html, 'head', tag);
+    }
   });
 
-  files.filter(f => f.type === 'js').forEach(js => {
+  jsFiles.forEach(js => {
     const tag = `<script data-src="${js.id}">\n${safeInlineScript(js.content)}\n</script>`;
     const re = new RegExp(`<script\\b[^>]*src=["']${refPattern(js)}["'][^>]*>\\s*</script>`, 'gi');
-    if (re.test(html)) html = html.replace(re, tag);
-    else html = insertBeforeClosingTag(html, 'body', tag);
+    if (re.test(html)) {
+      html = html.replace(re, tag);
+    } else if (!hasJsLinks && (js.name === 'script.js' || js.id === 'script.js')) {
+      // Auto-inject default script only if no other JS is linked
+      html = insertBeforeClosingTag(html, 'body', tag);
+    }
   });
 
   files.filter(f => f.type === 'image').forEach(img => {

@@ -7,18 +7,27 @@ import { getTargetHtmlFile } from '../utils/projectFiles';
 export type Tab = 'presets' | 'config' | 'tracks';
 
 const C = {
-  bg: '#161618',
-  surface: '#1e1e20',
-  surface2: '#252528',
-  border: '#333336',
+  bg: '#1e1e22',
+  surface: '#252528',
+  surface2: '#2d2d32',
+  border: 'rgba(0,0,0,0.5)',
   accent: '#e5a45a',
   accentBg: 'rgba(229,164,90,0.12)',
-  accentBrd: 'rgba(229,164,90,0.35)',
-  text: '#d4d4d4',
+  accentBrd: 'rgba(229,164,90,0.45)',
+  text: '#d8d8d8',
   muted: '#888',
   dim: '#555',
   green: '#4ec9b0',
   blue: '#9cdcfe',
+};
+
+const SKU = {
+  hdr: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+  bar: 'linear-gradient(180deg,#222226 0%,#1e1e22 100%)',
+  btn: 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)',
+  abtn: 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)',
+  shadow_raised: 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)',
+  shadow_sunken: 'inset 0 2px 4px rgba(0,0,0,0.55)',
 };
 
 const EASING_PRESETS = [
@@ -330,13 +339,15 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden' }}>
       {/* Tabs — hidden when used as a single-tab panel */}
       {!singleTab && (
-        <div style={{ flexShrink: 0, display: 'flex', background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ flexShrink: 0, display: 'flex', background: SKU.hdr, borderBottom: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.4)', zIndex: 10 }}>
           {([['presets', FiZap, 'Presets'], ['config', FiSliders, 'Config'], ['tracks', FiList, 'Tracks']] as const).map(([id, Icon, label]) => (
             <button key={id} onClick={() => setTab(id)}
-              style={{ flex: 1, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, fontWeight: tab === id ? 700 : 500,
-                background: tab === id ? C.accentBg : 'transparent',
-                borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`,
-                color: tab === id ? C.accent : C.muted, transition: 'all 0.12s' }}>
+              style={{ flex: 1, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                background: tab === id ? SKU.abtn : 'transparent',
+                borderBottom: tab === id ? `2px solid ${C.accent}` : 'none',
+                color: tab === id ? '#1a0d00' : C.muted,
+                boxShadow: tab === id ? SKU.shadow_raised : 'none',
+                transition: 'all 0.12s' }}>
               <Icon size={11} />{label}
             </button>
           ))}
@@ -349,29 +360,31 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
         {/* Presets Tab */}
         {tab === 'presets' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <div style={{ padding: '6px 8px', display: 'flex', gap: 4, background: C.surface, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 2 }}>
-              <input value={presetSearch} onChange={e => setPresetSearch(e.target.value)} placeholder="Search…"
-                style={{ ...inp, flex: 1, padding: '3px 8px', fontSize: 10 }} />
-              {presetSearch && <button onClick={() => setPresetSearch('')} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12, padding: '0 4px' }}>×</button>}
+            <div style={{ padding: '6px 8px', display: 'flex', gap: 4, background: SKU.bar, borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, zIndex: 2 }}>
+              <input value={presetSearch} onChange={e => setPresetSearch(e.target.value)} placeholder="Search animations…"
+                style={{ ...inp, flex: 1, padding: '4px 10px', fontSize: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 6, boxShadow: SKU.shadow_sunken }} />
+              {presetSearch && <button onClick={() => setPresetSearch('')} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 14, padding: '0 4px' }}>×</button>}
             </div>
-            <div style={{ padding: '6px 8px 2px', display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            <div style={{ padding: '8px', display: 'flex', flexWrap: 'wrap', gap: 4, background: 'rgba(0,0,0,0.1)' }}>
               {['All', ...(customAnimations.length > 0 ? ['★ Custom'] : []), ...ANIMATION_CATEGORIES].map(cat => (
                 <button key={cat} onClick={() => setActiveCategory(cat)}
-                  style={{ padding: '2px 8px', fontSize: 9, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-                    background: activeCategory === cat ? C.accentBg : C.surface2,
-                    border: `1px solid ${activeCategory === cat ? C.accentBrd : C.border}`,
-                    color: activeCategory === cat ? C.accent : C.muted, fontWeight: activeCategory === cat ? 700 : 400 }}>
+                  style={{ padding: '3px 10px', fontSize: 9, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                    background: activeCategory === cat ? SKU.abtn : SKU.btn,
+                    border: `1px solid ${activeCategory === cat ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.5)'}`,
+                    color: activeCategory === cat ? '#1a0d00' : C.muted,
+                    boxShadow: activeCategory === cat ? SKU.shadow_raised : SKU.shadow_raised,
+                    transition: 'all 0.1s' }}>
                   {cat}
                 </button>
               ))}
             </div>
             {!selectedElement && (
-              <div style={{ margin: '6px 8px', padding: '7px 10px', fontSize: 10, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <FiZap size={11} color={C.accent} />
-                <span>Click an element on the canvas, then click a preset to preview it live.</span>
+              <div style={{ margin: '8px', padding: '10px 12px', fontSize: 10, color: C.muted, background: SKU.bar, border: `1px solid ${C.border}`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, boxShadow: SKU.shadow_sunken }}>
+                <FiZap size={12} color={C.accent} style={{ filter: `drop-shadow(0 0 4px ${C.accent}66)` }} />
+                <span>Click an element on the canvas to preview animations.</span>
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: '6px 8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '4px 8px 12px' }}>
               {filteredPresets.map(p => {
                 const isSelected = animationConfig.preset === p.name;
                 const isPreviewing = previewingPreset === p.name;
@@ -388,34 +401,26 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
                     }}
                     title={selectedElement ? `Preview "${p.name}" on selected element` : p.description}
                     style={{
-                      padding: '6px 8px', textAlign: 'left', cursor: 'pointer', borderRadius: 5, position: 'relative', overflow: 'hidden',
-                      background: isPreviewing ? 'rgba(78,201,176,0.13)' : isSelected ? C.accentBg : C.surface2,
-                      border: `1px solid ${isPreviewing ? 'rgba(78,201,176,0.55)' : isSelected ? C.accentBrd : C.border}`,
-                      transition: 'border-color 0.15s, background 0.15s',
-                      outline: isPreviewing ? '1px solid rgba(78,201,176,0.25)' : 'none',
-                      outlineOffset: 1,
+                      padding: '8px 10px', textAlign: 'left', cursor: 'pointer', borderRadius: 6, position: 'relative', overflow: 'hidden',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: isPreviewing ? 'rgba(78,201,176,0.15)' : isSelected ? 'rgba(229,164,90,0.1)' : 'transparent',
+                      border: 'none',
+                      borderBottom: `1px solid ${C.border}`,
+                      transition: 'all 0.1s',
                     }}
-                    onMouseEnter={e => { if (!isSelected && !isPreviewing) (e.currentTarget.style.borderColor = C.muted); }}
-                    onMouseLeave={e => { if (!isSelected && !isPreviewing) (e.currentTarget.style.borderColor = C.border); }}
+                    onMouseEnter={e => { if (!isSelected && !isPreviewing) (e.currentTarget.style.background = 'rgba(255,255,255,0.04)'); }}
+                    onMouseLeave={e => { if (!isSelected && !isPreviewing) (e.currentTarget.style.background = 'transparent'); }}
                   >
-                    {/* Playing shimmer */}
+                    <div style={{ width: 16, height: 16, borderRadius: 5, background: isPreviewing ? C.green : isSelected ? C.accent : SKU.btn, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 9, color: (isPreviewing || isSelected) ? '#000' : '#888', fontWeight: 900, boxShadow: SKU.shadow_raised }}>
+                      {isPreviewing ? '▶' : isSelected ? '✓' : ''}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: isPreviewing ? C.green : isSelected ? C.accent : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                      <div style={{ fontSize: 8, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{p.category}</div>
+                    </div>
                     {isPreviewing && (
-                      <span style={{
-                        position: 'absolute', inset: 0, pointerEvents: 'none',
-                        background: 'linear-gradient(90deg, transparent 0%, rgba(78,201,176,0.12) 50%, transparent 100%)',
-                        backgroundSize: '200% 100%',
-                        animation: '__panelShimmer 0.9s linear infinite',
-                      }} />
+                      <span style={{ fontSize: 8, color: C.green, fontWeight: 800, letterSpacing: '0.04em', animation: '__panelBlink 0.6s ease-in-out infinite alternate' }}>LIVE</span>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: isPreviewing ? C.green : isSelected ? C.accent : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.name}</span>
-                      {isPreviewing && (
-                        <span style={{ fontSize: 8, color: C.green, fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0, animation: '__panelBlink 0.6s ease-in-out infinite alternate' }}>▶</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 8, color: isPreviewing ? C.green : C.dim, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {isPreviewing ? 'playing…' : p.category}
-                    </div>
                   </button>
                 );
               })}
@@ -425,15 +430,15 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
 
         {/* Config Tab */}
         {tab === 'config' && (
-          <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {!selectedElement && (
-              <div style={{ padding: '12px 8px', fontSize: 11, color: C.muted, textAlign: 'center', background: C.surface, borderRadius: 6, border: `1px solid ${C.border}` }}>
+              <div style={{ padding: '12px 10px', fontSize: 11, color: C.muted, textAlign: 'center', background: SKU.bar, borderRadius: 8, border: `1px solid ${C.border}`, boxShadow: SKU.shadow_sunken }}>
                 Click an element on the canvas to apply animations
               </div>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 10, color: C.muted, minWidth: 52, flexShrink: 0 }}>Preset</span>
-              <select style={sel} value={animationConfig.preset || 'none'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: C.dim, minWidth: 52, flexShrink: 0, fontWeight: 700, textTransform: 'uppercase' }}>Preset</span>
+              <select style={{ ...sel, background: SKU.btn, boxShadow: SKU.shadow_raised }} value={animationConfig.preset || 'none'}
                 onChange={e => {
                   const v = e.target.value;
                   const meta = PRESET_BY_NAME[v];
@@ -451,16 +456,17 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
               </select>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 10, color: C.muted, minWidth: 52, flexShrink: 0 }}>Trigger</span>
-              <div style={{ display: 'flex', gap: 2, flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: C.dim, minWidth: 52, flexShrink: 0, fontWeight: 700, textTransform: 'uppercase' }}>Trigger</span>
+              <div style={{ display: 'flex', gap: 2, flex: 1, background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`, borderRadius: 6, padding: 2, boxShadow: SKU.shadow_sunken }}>
                 {(['load', 'hover', 'click'] as const).map(opt => {
                   const sel2 = (animationConfig.trigger || 'load') === opt;
                   return (
                     <button key={opt} onClick={() => setAnimationConfig({ trigger: opt })}
-                      style={{ flex: 1, padding: '3px 0', fontSize: 9, fontWeight: 600, border: 'none', borderRadius: 2, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em',
-                        background: sel2 ? (opt === 'load' ? 'rgba(78,201,176,0.2)' : opt === 'hover' ? 'rgba(156,220,254,0.2)' : C.accentBg) : 'transparent',
-                        color: sel2 ? (opt === 'load' ? C.green : opt === 'hover' ? C.blue : C.accent) : C.dim }}>
+                      style={{ flex: 1, padding: '4px 0', fontSize: 9, fontWeight: 700, border: 'none', borderRadius: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em',
+                        background: sel2 ? SKU.abtn : 'transparent',
+                        color: sel2 ? '#1a0d00' : C.dim,
+                        boxShadow: sel2 ? SKU.shadow_raised : 'none' }}>
                       {opt}
                     </button>
                   );
@@ -468,41 +474,28 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[['Duration', 'duration', '0.6s'], ['Delay', 'delay', '0s']].map(([label, key, ph]) => (
-                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-                  <input style={inp} value={(animationConfig as any)[key] || ''} placeholder={ph}
+                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>{label}</span>
+                  <input style={{ ...inp, background: SKU.btn, boxShadow: SKU.shadow_raised, padding: '5px 8px' }} value={(animationConfig as any)[key] || ''} placeholder={ph}
                     onChange={e => setAnimationConfig({ [key]: e.target.value } as any)} />
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Repeat</span>
-                <select style={sel} value={animationConfig.iteration || '1'} onChange={e => setAnimationConfig({ iteration: e.target.value })}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Repeat</span>
+                <select style={{ ...sel, background: SKU.btn, boxShadow: SKU.shadow_raised, padding: '5px 8px' }} value={animationConfig.iteration || '1'} onChange={e => setAnimationConfig({ iteration: e.target.value })}>
                   {['1','2','3','5','infinite'].map(v => <option key={v}>{v}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Direction</span>
-                <select style={sel} value={animationConfig.direction || 'normal'} onChange={e => setAnimationConfig({ direction: e.target.value })}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Direction</span>
+                <select style={{ ...sel, background: SKU.btn, boxShadow: SKU.shadow_raised, padding: '5px 8px' }} value={animationConfig.direction || 'normal'} onChange={e => setAnimationConfig({ direction: e.target.value })}>
                   {['normal','reverse','alternate','alternate-reverse'].map(v => <option key={v}>{v}</option>)}
                 </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fill Mode</span>
-              <div style={{ display: 'flex', gap: 2, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 3, padding: 2 }}>
-                {['none','forwards','backwards','both'].map(v => {
-                  const isA = (animationConfig.fillMode || 'both') === v;
-                  return <button key={v} onClick={() => setAnimationConfig({ fillMode: v })}
-                    style={{ flex: 1, padding: '3px 0', fontSize: 9, fontWeight: isA ? 700 : 400, border: 'none', borderRadius: 2, cursor: 'pointer', background: isA ? C.accentBg : 'transparent', color: isA ? C.accent : C.dim }}>
-                    {v}
-                  </button>;
-                })}
               </div>
             </div>
 
@@ -511,14 +504,14 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
               onChange={v => setAnimationConfig({ easing: v })}
             />
 
-            <div style={{ display: 'flex', gap: 5 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={() => animationConfig.preset && animationConfig.preset !== 'none' && previewAnimation(animationConfig.preset)}
                 disabled={!animationConfig.preset || animationConfig.preset === 'none' || !selectedElement}
-                style={{ flex: 1, padding: '7px', background: previewingPreset ? 'rgba(78,201,176,0.12)' : C.surface, border: `1px solid ${previewingPreset ? 'rgba(78,201,176,0.45)' : C.border}`, borderRadius: 6, cursor: (!animationConfig.preset || animationConfig.preset === 'none' || !selectedElement) ? 'not-allowed' : 'pointer', color: previewingPreset ? C.green : C.muted, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: !selectedElement ? 0.5 : 1, transition: 'all 0.15s' }}>
+                style={{ flex: 1, padding: '8px', background: previewingPreset ? 'rgba(78,201,176,0.15)' : SKU.btn, border: `1px solid ${previewingPreset ? 'rgba(78,201,176,0.4)' : 'rgba(0,0,0,0.5)'}`, borderRadius: 8, cursor: (!animationConfig.preset || animationConfig.preset === 'none' || !selectedElement) ? 'not-allowed' : 'pointer', color: previewingPreset ? C.green : C.muted, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: !selectedElement ? 0.5 : 1, transition: 'all 0.15s', boxShadow: SKU.shadow_raised }}>
                 {previewingPreset ? <><span style={{ animation: '__panelBlink 0.6s infinite alternate' }}>▶</span> Playing…</> : <><FiPlay size={12} /> Preview</>}
               </button>
               <button onClick={applyAnimation}
-                style={{ flex: 2, padding: '7px', background: applied ? 'rgba(78,201,176,0.15)' : C.accentBg, border: `1px solid ${applied ? 'rgba(78,201,176,0.4)' : C.accentBrd}`, borderRadius: 6, cursor: 'pointer', color: applied ? C.green : C.accent, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s' }}>
+                style={{ flex: 2, padding: '8px', background: applied ? 'rgba(78,201,176,0.2)' : SKU.abtn, border: `1px solid ${applied ? 'rgba(78,201,176,0.4)' : 'rgba(0,0,0,0.5)'}`, borderRadius: 8, cursor: 'pointer', color: applied ? C.green : '#1a0d00', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s', boxShadow: SKU.shadow_raised }}>
                 {applied ? <><FiCheck size={13} /> Applied!</> : 'Apply to Element'}
               </button>
             </div>
@@ -527,28 +520,30 @@ const AnimationConfigPanel: React.FC<{ singleTab?: Tab }> = ({ singleTab }) => {
 
         {/* Tracks Tab */}
         {tab === 'tracks' && (
-          <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {tracks.length === 0 ? (
-              <div style={{ padding: '20px 8px', fontSize: 11, color: C.muted, textAlign: 'center' }}>
+              <div style={{ padding: '24px 10px', fontSize: 11, color: C.muted, textAlign: 'center', background: SKU.bar, borderRadius: 8, border: `1px solid ${C.border}`, boxShadow: SKU.shadow_sunken }}>
                 No animation tracks yet.<br />
-                <span style={{ fontSize: 10, color: C.dim }}>Apply animations from Presets tab.</span>
+                <span style={{ fontSize: 10, color: C.dim, marginTop: 4, display: 'block' }}>Apply animations from Presets tab.</span>
               </div>
             ) : tracks.map(track => (
               <div key={track.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: C.surface, borderRadius: 5, border: `1px solid ${C.border}` }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: track.color, flexShrink: 0 }} />
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: SKU.btn, borderRadius: 8, border: `1px solid ${C.border}`, boxShadow: SKU.shadow_raised }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: track.color, flexShrink: 0, boxShadow: `0 0 6px ${track.color}44` }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.element}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>{track.animation} · {track.duration}s · {track.trigger}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.element}</div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{track.animation} · {track.duration}s · {track.trigger}</div>
                 </div>
                 <button onClick={() => setTimelineState(prev => ({ ...prev, tracks: prev.tracks.filter(t => t.id !== track.id) }))}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 2, borderRadius: 2, display: 'flex' }}>
-                  <FiX size={11} />
+                  style={{ background: 'rgba(0,0,0,0.2)', border: 'none', cursor: 'pointer', color: C.dim, padding: 4, borderRadius: 4, display: 'flex' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#f44')}
+                  onMouseLeave={e => (e.currentTarget.style.color = C.dim)}>
+                  <FiX size={12} />
                 </button>
               </div>
             ))}
             {tracks.length > 0 && (
-              <div style={{ fontSize: 9, color: C.dim, textAlign: 'center', marginTop: 4 }}>
+              <div style={{ fontSize: 9, color: C.dim, textAlign: 'center', marginTop: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Open Timeline panel for full control
               </div>
             )}

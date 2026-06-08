@@ -43,8 +43,17 @@ import { dataUrlToBase64, fileIdFor, makeUniqueName } from '../utils/projectFile
   }
 
   const C = {
-    bg: '#1e1e1e', surface: '#252526', surface2: '#2d2d2d',
-    border: '#3e3e3e', accent: '#e5a45a', text: '#ccc', muted: '#888',
+    bg: '#1e1e22', surface: '#252528', surface2: '#2d2d32',
+    border: 'rgba(0,0,0,0.5)', accent: '#e5a45a', text: '#d8d8d8', muted: '#888',
+  };
+
+  const SKU = {
+    hdr: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+    bar: 'linear-gradient(180deg,#222226 0%,#1e1e22 100%)',
+    btn: 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)',
+    abtn: 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)',
+    shadow_raised: 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)',
+    shadow_sunken: 'inset 0 2px 4px rgba(0,0,0,0.55)',
   };
 
   const FileDialog: React.FC<{
@@ -226,7 +235,13 @@ import { dataUrlToBase64, fileIdFor, makeUniqueName } from '../utils/projectFile
         };
         reader.readAsText(file);
       } else {
-        addFile({ id: fileId, name, type: 'other', content: '', url: URL.createObjectURL(file), mimeType: file.type, folder: targetFolder });
+        // For other files, store as base64 so they can be persisted
+        const reader = new FileReader();
+        reader.onload = e => {
+          const dataUrl = String(e.target?.result || '');
+          addFile({ id: fileId, name, type: 'other', content: dataUrlToBase64(dataUrl), url: dataUrl, mimeType: file.type, folder: targetFolder });
+        };
+        reader.readAsDataURL(file);
       }
     }, [addFile, files]);
 
@@ -566,29 +581,29 @@ import { dataUrlToBase64, fileIdFor, makeUniqueName } from '../utils/projectFile
         onContextMenu={handlePanelCtx}>
 
         {!hideHeader && (
-          <div style={{ height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 8px', borderBottom: `1px solid ${C.border}`, background: C.surface }}>
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted, flex: 1 }}>Explorer</span>
+          <div style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 8px', background: SKU.hdr, borderBottom: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', zIndex: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted, flex: 1 }}>Explorer</span>
             <button title="New File" onClick={() => setDialog({ mode: 'create-file' })}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex', borderRadius: 3 }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'none'; }}>
-              <FiPlus size={14} />
+              style={{ background: SKU.btn, border: 'none', cursor: 'pointer', color: C.muted, padding: 4, display: 'flex', borderRadius: 4, marginLeft: 2, boxShadow: SKU.shadow_raised }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.muted; }}>
+              <FiPlus size={13} />
             </button>
             <button title="New Folder" onClick={() => setDialog({ mode: 'create-folder' })}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex', borderRadius: 3 }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'none'; }}>
-              <FiFolderPlus size={14} />
+              style={{ background: SKU.btn, border: 'none', cursor: 'pointer', color: C.muted, padding: 4, display: 'flex', borderRadius: 4, marginLeft: 2, boxShadow: SKU.shadow_raised }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.muted; }}>
+              <FiFolderPlus size={13} />
             </button>
             <button title="Import Files" onClick={() => uploadRef.current?.click()}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex', borderRadius: 3 }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'none'; }}>
-              <FiUpload size={14} />
+              style={{ background: SKU.btn, border: 'none', cursor: 'pointer', color: C.muted, padding: 4, display: 'flex', borderRadius: 4, marginLeft: 2, boxShadow: SKU.shadow_raised }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = C.muted; }}>
+              <FiUpload size={13} />
             </button>
             {onClose && (
               <button title="Close" onClick={onClose}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex', borderRadius: 3 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: 4, display: 'flex', borderRadius: 4, marginLeft: 2 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#f88'; e.currentTarget.style.background = 'rgba(255,80,80,0.12)'; }}
                 onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'none'; }}>
                 <FiX size={12} />
@@ -597,11 +612,7 @@ import { dataUrlToBase64, fileIdFor, makeUniqueName } from '../utils/projectFile
           </div>
         )}
 
-        <div style={{ padding: '5px 12px 2px', fontSize: 10, color: '#444', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Project Files
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}
           onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
           onDrop={e => {
             e.preventDefault(); e.stopPropagation();

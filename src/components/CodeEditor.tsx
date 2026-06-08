@@ -111,10 +111,10 @@ function buildPrompt(lang: string, file: string, prefix: string, suffix: string)
 }
 
 function cleanSuggestion(raw: string): string {
+  // Only remove code block markdown wrappers, preserve internal content
   return raw
-    .replace(/^```[\w-]*\n?/i, '')
-    .replace(/\n?```$/i, '')
-    .replace(/^`+|`+$/g, '')
+    .replace(/^```[\w-]*\n/i, '')
+    .replace(/\n```$/i, '')
     .trimEnd()
     .slice(0, 1500);
 }
@@ -208,8 +208,11 @@ function registerProvider(monaco: any) {
                 dispose: () => undefined,
               });
             }
-          } catch {
+          } catch (err: any) {
             aiControl.setState('error');
+            const msg = err?.message || 'Unknown AI error';
+            console.error('AI Completion failed:', err);
+            useEditorStore.getState().showNotification(`AI Error: ${msg}`);
             resolve({ items: [], dispose: () => undefined });
           } finally {
             sub?.dispose();

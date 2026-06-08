@@ -12,16 +12,25 @@ import { getTargetHtmlFile } from '../utils/projectFiles';
 
 /* ─── Design tokens ───────────────────────────────────────── */
 const C = {
-  bg:        '#1a1a1e',
-  surface:   '#1f1f23',
-  surface2:  '#2d2d31',
-  border:    '#3c3c40',
+  bg:        '#1e1e22',
+  surface:   '#252528',
+  surface2:  '#2d2d32',
+  border:    'rgba(0,0,0,0.5)',
   accent:    '#e5a45a',
-  accentBg:  'rgba(229,164,90,0.15)',
-  accentBrd: 'rgba(229,164,90,0.4)',
-  text:      '#e0e0e0',
-  muted:     '#858585',
-  dim:       '#666',
+  accentBg:  'rgba(229,164,90,0.12)',
+  accentBrd: 'rgba(229,164,90,0.45)',
+  text:      '#d8d8d8',
+  muted:     '#888',
+  dim:       '#555',
+};
+
+const SKU = {
+  hdr: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+  bar: 'linear-gradient(180deg,#222226 0%,#1e1e22 100%)',
+  btn: 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)',
+  abtn: 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)',
+  shadow_raised: 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)',
+  shadow_sunken: 'inset 0 2px 4px rgba(0,0,0,0.55)',
 };
 
 const PRESET_KEYFRAMES: Record<string, string> = KEYFRAMES_MAP;
@@ -80,24 +89,25 @@ const Section: React.FC<SectionProps> = React.memo(({ title, icon, children, def
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 5,
           padding: '5px 8px',
-          background: effectiveOpen ? C.accentBg : 'transparent',
-          transition: 'background 0.15s',
+          background: effectiveOpen ? SKU.abtn : SKU.hdr,
+          boxShadow: effectiveOpen ? SKU.shadow_raised : 'none',
+          transition: 'all 0.15s',
         }}
-        onMouseEnter={e => (e.currentTarget.style.background = effectiveOpen ? C.accentBg : 'rgba(255,255,255,0.05)')}
-        onMouseLeave={e => (e.currentTarget.style.background = effectiveOpen ? C.accentBg : 'transparent')}
+        onMouseEnter={e => { if (!effectiveOpen) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+        onMouseLeave={e => { if (!effectiveOpen) e.currentTarget.style.background = SKU.hdr; }}
       >
         <button
           onClick={() => !q && !singleMode && setOpen(o => !o)}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, background: 'none', border: 'none', cursor: (q || singleMode) ? 'default' : 'pointer', outline: 'none', padding: 0, minWidth: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, background: 'none', border: 'none', cursor: (q || singleMode) ? 'default' : 'pointer', outline: 'none', padding: 0, minWidth: 0 }}
         >
-          {icon && <span style={{ color: effectiveOpen ? C.accent : C.muted, display: 'flex', transition: 'color 0.15s' }}>{icon}</span>}
+          {icon && <span style={{ color: effectiveOpen ? '#1a0d00' : C.muted, display: 'flex', transition: 'color 0.15s' }}>{icon}</span>}
           <span style={{
-            flex: 1, textAlign: 'left', fontSize: 9, fontWeight: 600,
+            flex: 1, textAlign: 'left', fontSize: 9, fontWeight: 700,
             letterSpacing: '0.06em', textTransform: 'uppercase',
-            color: effectiveOpen ? C.text : C.muted,
+            color: effectiveOpen ? '#1a0d00' : C.muted,
           }}>{title}</span>
           {!singleMode && (
-            <span style={{ color: C.dim, display: 'flex', paddingRight: 4 }}>
+            <span style={{ color: effectiveOpen ? '#1a0d00' : C.dim, display: 'flex', paddingRight: 4 }}>
               {effectiveOpen ? <FiChevronDown size={10} /> : <FiChevronRight size={10} />}
             </span>
           )}
@@ -147,9 +157,10 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = React.memo((
 
 /* ─── Shared input style ──────────────────────────────────── */
 const inputBase: React.CSSProperties = {
-  flex: 1, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 3,
-  padding: '3px 5px', fontSize: 10, color: C.text, fontFamily: 'var(--app-font-mono)',
-  outline: 'none', minWidth: 0, transition: 'border-color 0.15s',
+  flex: 1, background: SKU.btn, border: `1px solid ${C.border}`, borderRadius: 4,
+  padding: '3px 6px', fontSize: 10, color: C.text, fontFamily: 'var(--app-font-mono)',
+  outline: 'none', minWidth: 0, transition: 'all 0.1s',
+  boxShadow: SKU.shadow_raised,
 };
 
 const selBase: React.CSSProperties = {
@@ -174,7 +185,7 @@ function parseTransform(transform: string) {
 /* ─── BtnGroup ────────────────────────────────────────────── */
 function BtnGroup({ options, value, onChange, small }: { options: string[]; value: string; onChange: (v: string) => void; small?: boolean }) {
   return (
-    <div style={{ display: 'flex', gap: 2, flex: 1 }}>
+    <div style={{ display: 'flex', gap: 2, flex: 1, background: 'rgba(0,0,0,0.2)', padding: 2, borderRadius: 6, boxShadow: SKU.shadow_sunken }}>
       {options.map(o => {
         const active = value === o || value.startsWith(o);
         return (
@@ -183,17 +194,17 @@ function BtnGroup({ options, value, onChange, small }: { options: string[]; valu
             onClick={() => onChange(o)}
             title={o}
             style={{
-              flex: 1, padding: small ? '2px 1px' : '3px 2px',
-              fontSize: small ? 9 : 10, fontWeight: active ? 600 : 400,
-              background: active ? C.accentBg : C.surface2,
-              border: `1px solid ${active ? C.accentBrd : C.border}`,
+              flex: 1, padding: small ? '2px 1px' : '4px 2px',
+              fontSize: small ? 9 : 10, fontWeight: active ? 700 : 400,
+              background: active ? SKU.abtn : 'transparent',
+              border: 'none',
               borderRadius: 4, cursor: 'pointer',
-              color: active ? C.accent : C.muted,
+              color: active ? '#1a0d00' : C.muted,
+              boxShadow: active ? SKU.shadow_raised : 'none',
               transition: 'all 0.12s',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              textTransform: 'uppercase', letterSpacing: '0.04em',
             }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = C.muted; }}
-            onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = C.border; }}
           >
             {o}
           </button>

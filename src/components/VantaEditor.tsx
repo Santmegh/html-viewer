@@ -407,46 +407,42 @@ function parseHtmlSelectors(html: string): SelectorOption[] {
     { value: 'body', label: 'body', tag: 'body', type: 'body' },
   ];
 
-  // Collect id= attributes with surrounding tag name
-  const idRe = /<(\w+)[^>]*\sid=["']([^"']+)["'][^>]*>/gi;
+  // More robust regex for id and class extraction
+  // 1. IDs
+  const idMatches = Array.from(html.matchAll(/<[a-z0-9-]+[^>]*\sid=["']([^"']+)["']/gi));
   const seenIds = new Set<string>();
-  let m: RegExpExecArray | null;
-  while ((m = idRe.exec(html)) !== null) {
-    const tag = m[1].toLowerCase();
-    const ids = m[2].trim().split(/\s+/);
-    for (const id of ids) {
-      if (id && !seenIds.has(id)) {
-        seenIds.add(id);
-        results.push({ value: `#${id}`, label: `#${id}`, tag, type: 'id' });
-      }
+  idMatches.forEach(m => {
+    const id = m[1].trim();
+    if (id && !seenIds.has(id)) {
+      seenIds.add(id);
+      results.push({ value: `#${id}`, label: `#${id}`, tag: '', type: 'id' });
     }
-  }
+  });
 
-  // Collect class= attributes with surrounding tag name
-  const clsRe = /<(\w+)[^>]*\sclass=["']([^"']+)["'][^>]*>/gi;
+  // 2. Classes
+  const classMatches = Array.from(html.matchAll(/<[a-z0-9-]+[^>]*\sclass=["']([^"']+)["']/gi));
   const seenClasses = new Set<string>();
-  while ((m = clsRe.exec(html)) !== null) {
-    const tag = m[1].toLowerCase();
-    const classes = m[2].trim().split(/\s+/);
-    for (const cls of classes) {
+  classMatches.forEach(m => {
+    const classes = m[1].trim().split(/\s+/);
+    classes.forEach(cls => {
       if (cls && !seenClasses.has(cls) && !/[:{]/.test(cls)) {
         seenClasses.add(cls);
-        results.push({ value: `.${cls}`, label: `.${cls}`, tag, type: 'class' });
+        results.push({ value: `.${cls}`, label: `.${cls}`, tag: '', type: 'class' });
       }
-    }
-  }
+    });
+  });
 
   // Collect semantic/structural tags (unique)
   const SEMANTIC = ['header','nav','main','section','article','aside','footer','div','hero','h1','h2','h3','p','ul','ol','li','a','button','form','input','table'];
-  const tagRe = /<([\w-]+)[\s>]/gi;
+  const tagMatches = Array.from(html.matchAll(/<([\w-]+)[\s>]/gi));
   const seenTags = new Set<string>(['html','head','body','meta','link','script','style','title','br','hr','img','span']);
-  while ((m = tagRe.exec(html)) !== null) {
+  tagMatches.forEach(m => {
     const tag = m[1].toLowerCase();
     if (!seenTags.has(tag) && SEMANTIC.includes(tag)) {
       seenTags.add(tag);
       results.push({ value: tag, label: tag, tag, type: 'tag' });
     }
-  }
+  });
 
   return results;
 }

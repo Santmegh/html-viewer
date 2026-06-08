@@ -9,7 +9,31 @@ type Track = import('../store/editorStore').TimelineTrack;
 type CustomAnimation = import('../store/editorStore').CustomAnimation;
 
 const COLORS = ['#e5a45a', '#4ec9b0', '#9cdcfe', '#dcdcaa', '#c586c0', '#f44747', '#89d185'];
-const TRACK_H = 28;
+const TRACK_H = 32;
+
+const C = {
+  bg: '#1e1e22',
+  surface: '#252528',
+  surface2: '#2d2d32',
+  border: 'rgba(0,0,0,0.5)',
+  accent: '#e5a45a',
+  accentBg: 'rgba(229,164,90,0.12)',
+  accentBrd: 'rgba(229,164,90,0.45)',
+  text: '#d8d8d8',
+  muted: '#888',
+  dim: '#555',
+  green: '#4ec9b0',
+  blue: '#9cdcfe',
+};
+
+const SKU = {
+  hdr: 'linear-gradient(180deg,#2e2e34 0%,#252528 50%,#222225 100%)',
+  bar: 'linear-gradient(180deg,#222226 0%,#1e1e22 100%)',
+  btn: 'linear-gradient(180deg,#3a3a42 0%,#2e2e35 50%,#2a2a31 100%)',
+  abtn: 'linear-gradient(180deg,#c8913c 0%,#e5a45a 40%,#c8913c 100%)',
+  shadow_raised: 'inset 0 1px 0 rgba(255,255,255,0.13),0 2px 5px rgba(0,0,0,0.5)',
+  shadow_sunken: 'inset 0 2px 4px rgba(0,0,0,0.55)',
+};
 
 const EASING_NAMED: { label: string; value: string }[] = [
   { label: 'ease', value: 'ease' },
@@ -45,10 +69,10 @@ function MiniCurve({ value, size = 28 }: { value: string; size?: number }) {
   const W = S - PAD * 2;
   return (
     <svg width={S} height={S} style={{ flexShrink: 0 }}>
-      <rect x={0} y={0} width={S} height={S} fill="rgba(0,0,0,0.25)" rx="2" />
+      <rect x={0} y={0} width={S} height={S} fill="rgba(0,0,0,0.3)" rx="4" />
       <path
         d={`M${PAD},${PAD + W} C${PAD + x1 * W},${PAD + (1 - y1) * W} ${PAD + x2 * W},${PAD + (1 - y2) * W} ${PAD + W},${PAD}`}
-        fill="none" stroke="#e5a45a" strokeWidth="1.5"
+        fill="none" stroke={C.accent} strokeWidth="2"
       />
     </svg>
   );
@@ -82,54 +106,54 @@ function CubicBezierEditor({ value, onChange }: { value: string; onChange: (v: s
   };
 
   return (
-    <div style={{ background: '#161618', borderRadius: 5, padding: 6, border: '1px solid #333' }}>
-      <div style={{ fontSize: 9, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Curve Editor</div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <svg width={SIZE + PAD * 2} height={SIZE + PAD * 2} style={{ background: '#111', borderRadius: 3, flexShrink: 0, cursor: 'crosshair', border: '1px solid #2a2a2a' }}>
+    <div style={{ background: C.surface, borderRadius: 8, padding: 8, border: `1px solid ${C.border}`, boxShadow: SKU.shadow_sunken }}>
+      <div style={{ fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontWeight: 700 }}>Curve Editor</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <svg width={SIZE + PAD * 2} height={SIZE + PAD * 2} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 6, flexShrink: 0, cursor: 'crosshair', border: `1px solid ${C.border}` }}>
           {[0.25, 0.5, 0.75].map(t => (
             <g key={t}>
-              <line x1={PAD + t * SIZE} y1={PAD} x2={PAD + t * SIZE} y2={PAD + SIZE} stroke="#222" strokeWidth="0.5" />
-              <line x1={PAD} y1={PAD + t * SIZE} x2={PAD + SIZE} y2={PAD + t * SIZE} stroke="#222" strokeWidth="0.5" />
+              <line x1={PAD + t * SIZE} y1={PAD} x2={PAD + t * SIZE} y2={PAD + SIZE} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+              <line x1={PAD} y1={PAD + t * SIZE} x2={PAD + SIZE} y2={PAD + t * SIZE} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
             </g>
           ))}
-          <line x1={p0.x} y1={p0.y} x2={c1.x} y2={c1.y} stroke="#4ec9b0" strokeWidth="1" opacity="0.6" />
-          <line x1={p3.x} y1={p3.y} x2={c2.x} y2={c2.y} stroke="#9cdcfe" strokeWidth="1" opacity="0.6" />
-          <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke="#e5a45a" strokeWidth="1.5" />
-          <circle cx={c1.x} cy={c1.y} r={4.5} fill="#4ec9b0" stroke="#fff" strokeWidth="1" style={{ cursor: 'grab' }} onMouseDown={e => dragHandle(1, e)} />
-          <circle cx={c2.x} cy={c2.y} r={4.5} fill="#9cdcfe" stroke="#fff" strokeWidth="1" style={{ cursor: 'grab' }} onMouseDown={e => dragHandle(2, e)} />
-          <circle cx={p0.x} cy={p0.y} r={2.5} fill="#555" />
-          <circle cx={p3.x} cy={p3.y} r={2.5} fill="#555" />
+          <line x1={p0.x} y1={p0.y} x2={c1.x} y2={c1.y} stroke={C.green} strokeWidth="1" opacity="0.4" />
+          <line x1={p3.x} y1={p3.y} x2={c2.x} y2={c2.y} stroke={C.blue} strokeWidth="1" opacity="0.4" />
+          <path d={`M${p0.x},${p0.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${p3.x},${p3.y}`} fill="none" stroke={C.accent} strokeWidth="2" />
+          <circle cx={c1.x} cy={c1.y} r={5} fill={C.green} stroke="#fff" strokeWidth="1.5" style={{ cursor: 'grab' }} onMouseDown={e => dragHandle(1, e)} />
+          <circle cx={c2.x} cy={c2.y} r={5} fill={C.blue} stroke="#fff" strokeWidth="1.5" style={{ cursor: 'grab' }} onMouseDown={e => dragHandle(2, e)} />
+          <circle cx={p0.x} cy={p0.y} r={3} fill="#444" />
+          <circle cx={p3.x} cy={p3.y} r={3} fill="#444" />
         </svg>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
           {[['X1', x1, (v: number) => onChange(`cubic-bezier(${v.toFixed(2)},${y1.toFixed(2)},${x2.toFixed(2)},${y2.toFixed(2)})`)],
             ['Y1', y1, (v: number) => onChange(`cubic-bezier(${x1.toFixed(2)},${v.toFixed(2)},${x2.toFixed(2)},${y2.toFixed(2)})`)],
             ['X2', x2, (v: number) => onChange(`cubic-bezier(${x1.toFixed(2)},${y1.toFixed(2)},${v.toFixed(2)},${y2.toFixed(2)})`)],
             ['Y2', y2, (v: number) => onChange(`cubic-bezier(${x1.toFixed(2)},${y1.toFixed(2)},${x2.toFixed(2)},${v.toFixed(2)})`)]].map(([label, val, setter]) => (
-            <div key={label as string} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ fontSize: 9, color: (label as string).includes('1') ? '#4ec9b0' : '#9cdcfe', width: 16, fontWeight: 700, flexShrink: 0 }}>{label as string}</span>
+            <div key={label as string} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 9, color: (label as string).includes('1') ? C.green : C.blue, width: 16, fontWeight: 800, flexShrink: 0 }}>{label as string}</span>
               <input type="number" min="-2" max="3" step="0.01" value={(val as number).toFixed(2)}
                 onChange={e => (setter as (v: number) => void)(parseFloat(e.target.value) || 0)}
-                style={{ flex: 1, background: '#1a1a1c', border: '1px solid #2d2d2d', borderRadius: 3, padding: '2px 4px', fontSize: 9, color: '#ccc', outline: 'none', fontFamily: 'monospace' }}
+                style={{ flex: 1, background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`, borderRadius: 4, padding: '3px 6px', fontSize: 10, color: C.text, outline: 'none', fontFamily: 'var(--app-font-mono)', boxShadow: SKU.shadow_sunken }}
               />
             </div>
           ))}
         </div>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
         {EASING_NAMED.map(p => {
           const isA = value === p.value;
           return (
             <button key={p.label} onClick={() => onChange(p.value)}
-              style={{ padding: '1px 6px', fontSize: 9, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
-                background: isA ? 'rgba(229,164,90,0.15)' : '#1a1a1c', border: `1px solid ${isA ? 'rgba(229,164,90,0.4)' : '#2d2d2d'}`,
-                color: isA ? '#e5a45a' : '#777' }}>
+              style={{ padding: '2px 8px', fontSize: 9, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                background: isA ? SKU.abtn : SKU.btn, border: `1px solid ${isA ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.5)'}`,
+                color: isA ? '#1a0d00' : C.muted, boxShadow: SKU.shadow_raised }}>
               {p.label}
             </button>
           );
         })}
       </div>
       {value.startsWith('cubic-bezier') && (
-        <div style={{ fontSize: 8, color: '#444', marginTop: 4, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+        <div style={{ fontSize: 9, color: C.dim, marginTop: 6, fontFamily: 'var(--app-font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.7 }}>{value}</div>
       )}
     </div>
   );
@@ -356,8 +380,10 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   const [editingCustom, setEditingCustom] = useState<CustomAnimation | null>(null);
   const [editingOriginalName, setEditingOriginalName] = useState<string | undefined>();
   const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [loop, setLoop] = useState(false);
   const totalDuration = Math.max(5, ...tracks.map(t => t.delay + t.duration));
-  const labelWidth = 150;
+  const labelWidth = 160;
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
@@ -390,19 +416,26 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   }, [tracks, customAnimations]);
 
   useEffect(() => {
+    let lastTime = performance.now();
     if (playing) {
       pushAnimationCSS(buildPreviewCSS(true));
       tickRef.current = setInterval(() => {
+        const now = performance.now();
+        const delta = ((now - lastTime) / 1000) * playbackRate;
+        lastTime = now;
         setTimelineState(prev => {
-          if (prev.currentTime >= totalDuration) return { ...prev, playing: false, currentTime: totalDuration };
-          return { ...prev, currentTime: parseFloat((prev.currentTime + 0.05).toFixed(3)) };
+          if (prev.currentTime >= totalDuration) {
+            if (loop) return { ...prev, currentTime: 0 };
+            return { ...prev, playing: false, currentTime: totalDuration };
+          }
+          return { ...prev, currentTime: prev.currentTime + delta };
         });
-      }, 50);
+      }, 33);
     } else {
       if (tickRef.current) clearInterval(tickRef.current);
     }
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
-  }, [playing, totalDuration, pushAnimationCSS, setTimelineState, buildPreviewCSS]);
+  }, [playing, totalDuration, pushAnimationCSS, setTimelineState, buildPreviewCSS, playbackRate]);
 
   useEffect(() => {
     if (!animationsApplied || playing) return;
@@ -437,7 +470,7 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   };
 
   const addTrack = useCallback(() => {
-    const id = Date.now().toString();
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const label = selectedElement
       ? (selectedElement.styles?.selector || (selectedElement.id ? `#${selectedElement.id}` : selectedElement.tagName))
       : '.element';
@@ -467,7 +500,8 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     setTimelineState(prev => ({ ...prev, tracks: prev.tracks.map(tr => tr.id === id ? { ...tr, ...update } : tr) }));
 
   const duplicateTrack = (track: Track) => {
-    const newTrack = { ...track, id: Date.now().toString(), delay: Math.min(track.delay + 0.3, totalDuration - track.duration) };
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const newTrack = { ...track, id, delay: Math.min(track.delay + 0.3, totalDuration - track.duration) };
     setTimelineState(prev => ({ ...prev, tracks: [...prev.tracks, newTrack] }));
     setSelectedTrackId(newTrack.id);
   };
@@ -515,9 +549,11 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startX;
       const dT = (dx / scaledW) * totalDuration;
-      const newDelay = Math.max(0, Math.min(totalDuration - trackDuration, initDelay + dT));
+      let newDelay = Math.max(0, Math.min(totalDuration - trackDuration, initDelay + dT));
+      // Snap to 0.1s
+      newDelay = Math.round(newDelay * 10) / 10;
       setTimelineState(prev => ({
-        ...prev, tracks: prev.tracks.map(tr => tr.id === trackId ? { ...tr, delay: parseFloat(newDelay.toFixed(2)) } : tr),
+        ...prev, tracks: prev.tracks.map(tr => tr.id === trackId ? { ...tr, delay: newDelay } : tr),
       }));
     };
     const onUp = () => { hideDragCapture(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
@@ -539,15 +575,29 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
     const onMove = (ev: MouseEvent) => {
       const dx = ev.clientX - startX;
       const dT = (dx / scaledW) * totalDuration;
-      const newDur = Math.max(0.1, Math.min(totalDuration - initDelay, initDuration + dT));
+      let newDur = Math.max(0.1, Math.min(totalDuration - initDelay, initDuration + dT));
+      // Snap to 0.1s
+      newDur = Math.round(newDur * 10) / 10;
       setTimelineState(prev => ({
-        ...prev, tracks: prev.tracks.map(tr => tr.id === trackId ? { ...tr, duration: parseFloat(newDur.toFixed(2)) } : tr),
+        ...prev, tracks: prev.tracks.map(tr => tr.id === trackId ? { ...tr, duration: newDur } : tr),
       }));
     };
     const onUp = () => { hideDragCapture(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [zoom, totalDuration, setTimelineState]);
+
+  const moveTrack = (id: string, dir: 'up' | 'down') => {
+    setTimelineState(prev => {
+      const idx = prev.tracks.findIndex(t => t.id === id);
+      if (idx === -1) return prev;
+      const nextIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (nextIdx < 0 || nextIdx >= prev.tracks.length) return prev;
+      const nextTracks = [...prev.tracks];
+      [nextTracks[idx], nextTracks[nextIdx]] = [nextTracks[nextIdx], nextTracks[idx]];
+      return { ...prev, tracks: nextTracks };
+    });
+  };
 
   const seekTo = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -621,57 +671,78 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
       || p.description.toLowerCase().includes(presetSearch.toLowerCase()));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#141416', overflow: 'hidden', position: 'relative' }} onWheel={handleWheel}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.bg, overflow: 'hidden', position: 'relative' }} onWheel={handleWheel}>
 
       {/* Header */}
-      <div style={{ height: 34, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3, padding: '0 6px', background: '#1e1e20', borderBottom: '1px solid #2e2e30', userSelect: 'none', overflowX: 'auto', overflowY: 'hidden' }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#666', marginRight: 2 }}>Timeline</span>
+      <div style={{ height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', background: SKU.hdr, borderBottom: `1px solid ${C.border}`, userSelect: 'none', overflowX: 'auto', overflowY: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', zIndex: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.muted, marginRight: 6 }}>Timeline</span>
 
-        <button title="Add Track" onClick={addTrack} style={hdrBtn}><FiPlus size={12} /></button>
+        <button title="Add Track" onClick={addTrack} style={{ ...hdrBtn, background: SKU.btn, boxShadow: SKU.shadow_raised, color: C.accent }}><FiPlus size={13} /></button>
 
-        <div style={{ width: 1, height: 14, background: '#333', margin: '0 1px' }} />
+        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.05)', margin: '0 2px' }} />
 
         <button title={playing ? 'Stop' : 'Play preview'}
           onClick={() => { if (playing) stopAndReset(); else startPlayback(); }}
-          style={{ ...hdrBtn, color: playing ? '#e5a45a' : '#555', background: playing ? 'rgba(229,164,90,0.1)' : 'none', borderRadius: 3 }}>
-          {playing ? <FiSquare size={11} /> : <FiPlay size={11} />}
+          style={{ ...hdrBtn, background: playing ? SKU.abtn : SKU.btn, color: playing ? '#1a0d00' : C.accent, boxShadow: SKU.shadow_raised, borderRadius: 6 }}>
+          {playing ? <FiSquare size={12} /> : <FiPlay size={12} />}
         </button>
 
-        <span style={{ fontSize: 10, color: '#666', fontFamily: 'monospace', minWidth: 38, padding: '0 3px' }}>{currentTime.toFixed(2)}s</span>
+        <button title="Toggle Loop" onClick={() => setLoop(!loop)}
+          style={{ ...hdrBtn, background: loop ? SKU.abtn : SKU.btn, color: loop ? '#1a0d00' : C.dim, marginLeft: 2, borderRadius: 6, boxShadow: SKU.shadow_raised, fontSize: 10 }}>
+          {loop ? '∞' : '1x'}
+        </button>
 
-        <button title="Reset" onClick={stopAndReset} style={hdrBtn}><FiRefreshCw size={11} /></button>
+        <span style={{ fontSize: 10, color: C.accent, fontFamily: 'var(--app-font-mono)', minWidth: 42, textAlign: 'center', fontWeight: 700 }}>{currentTime.toFixed(2)}s</span>
 
-        <div style={{ width: 1, height: 14, background: '#333', margin: '0 1px' }} />
+        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: 2, borderRadius: 6, gap: 1, boxShadow: SKU.shadow_sunken, marginLeft: 4 }}>
+          {([0.5, 1, 2] as const).map(rate => (
+            <button key={rate} onClick={() => setPlaybackRate(rate)}
+              style={{ padding: '1px 6px', fontSize: 8, fontWeight: 800, border: 'none', borderRadius: 4, cursor: 'pointer',
+                background: playbackRate === rate ? SKU.abtn : 'transparent',
+                color: playbackRate === rate ? '#1a0d00' : C.dim }}>
+              {rate}x
+            </button>
+          ))}
+        </div>
+
+        <button title="Jump to Start" onClick={() => setTimelineState(prev => ({ ...prev, currentTime: 0 }))}
+          style={{ ...hdrBtn, background: SKU.btn, color: C.muted, marginLeft: 6, borderRadius: 6, boxShadow: SKU.shadow_raised }}>⏮</button>
+        <button title="Jump to End" onClick={() => setTimelineState(prev => ({ ...prev, currentTime: totalDuration }))}
+          style={{ ...hdrBtn, background: SKU.btn, color: C.muted, borderRadius: 6, boxShadow: SKU.shadow_raised }}>⏭</button>
+
+        <button title="Reset" onClick={stopAndReset} style={{ ...hdrBtn, background: SKU.btn, boxShadow: SKU.shadow_raised, color: C.muted }}><FiRefreshCw size={12} /></button>
+
+        <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.05)', margin: '0 2px' }} />
 
         <button title="Preset Library" onClick={() => setShowPresetLibrary(s => !s)}
-          style={{ ...hdrBtn, width: 'auto', padding: '0 7px', fontSize: 10, fontWeight: 600, color: showPresetLibrary ? '#e5a45a' : '#888', background: showPresetLibrary ? 'rgba(229,164,90,0.12)' : 'none', border: `1px solid ${showPresetLibrary ? 'rgba(229,164,90,0.35)' : '#2e2e30'}`, borderRadius: 3 }}>
+          style={{ ...hdrBtn, width: 'auto', padding: '0 10px', fontSize: 10, fontWeight: 700, color: showPresetLibrary ? '#1a0d00' : C.muted, background: showPresetLibrary ? SKU.abtn : SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: SKU.shadow_raised, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Library
         </button>
 
         <button title="Create custom @keyframes"
           onClick={() => { setEditingCustom({ name: '', keyframes: '@keyframes myAnim {\n  from { opacity: 0; }\n  to { opacity: 1; }\n}' }); setEditingOriginalName(undefined); setVisualKFs([defaultKF(0), defaultKF(100)]); setCustomEditorMode('visual'); setShowCustomEditor(true); }}
-          style={{ ...hdrBtn, width: 'auto', padding: '0 7px', fontSize: 10, fontWeight: 600, color: '#9cdcfe', background: 'rgba(156,220,254,0.07)', border: '1px solid rgba(156,220,254,0.25)', borderRadius: 3 }}>
+          style={{ ...hdrBtn, width: 'auto', padding: '0 10px', fontSize: 10, fontWeight: 700, color: C.blue, background: SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: SKU.shadow_raised, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           + Custom
         </button>
 
         <button title="Apply animations to page" onClick={applyAnimations}
-          style={{ ...hdrBtn, width: 'auto', padding: '0 8px', fontSize: 10, fontWeight: 600, color: appliedMsg ? '#4ec9b0' : '#e5a45a', background: appliedMsg ? 'rgba(78,201,176,0.1)' : 'rgba(229,164,90,0.1)', border: `1px solid ${appliedMsg ? 'rgba(78,201,176,0.3)' : 'rgba(229,164,90,0.28)'}`, borderRadius: 3, gap: 4, display: 'flex', alignItems: 'center' }}>
-          {appliedMsg ? <><FiCheck size={10} /> Applied</> : 'Apply'}
+          style={{ ...hdrBtn, width: 'auto', padding: '0 12px', fontSize: 10, fontWeight: 700, color: appliedMsg ? C.green : '#1a0d00', background: appliedMsg ? 'rgba(78,201,176,0.15)' : SKU.abtn, border: `1px solid ${C.border}`, borderRadius: 6, boxShadow: SKU.shadow_raised, gap: 5, display: 'flex', alignItems: 'center', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {appliedMsg ? <><FiCheck size={11} /> Applied</> : 'Apply'}
         </button>
 
-        <button title="Clear animations" onClick={clearAnimations} style={{ ...hdrBtn, fontSize: 11, color: '#444', width: 22 }}>↺</button>
+        <button title="Clear animations" onClick={clearAnimations} style={{ ...hdrBtn, background: SKU.btn, color: '#f44747', width: 26, borderRadius: 6, boxShadow: SKU.shadow_raised }}>↺</button>
 
         <div style={{ flex: 1 }} />
 
-        <button title="Zoom Out" onClick={() => setZoom(z => Math.max(0.5, z - 0.5))} style={hdrBtn}><FiZoomOut size={12} /></button>
-        <span style={{ fontSize: 10, color: '#555', minWidth: 32, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-        <button title="Zoom In" onClick={() => setZoom(z => Math.min(8, z + 0.5))} style={hdrBtn}><FiZoomIn size={12} /></button>
-        <button title="Reset Zoom" onClick={() => setZoom(1)} style={{ ...hdrBtn, fontSize: 10, color: '#666', width: 'auto', padding: '0 5px' }}>1:1</button>
+        <button title="Zoom Out" onClick={() => setZoom(z => Math.max(0.5, z - 0.5))} style={{ ...hdrBtn, background: SKU.btn, boxShadow: SKU.shadow_raised, color: C.muted }}><FiZoomOut size={12} /></button>
+        <span style={{ fontSize: 9, color: C.dim, minWidth: 32, textAlign: 'center', fontWeight: 700 }}>{Math.round(zoom * 100)}%</span>
+        <button title="Zoom In" onClick={() => setZoom(z => Math.min(8, z + 0.5))} style={{ ...hdrBtn, background: SKU.btn, boxShadow: SKU.shadow_raised, color: C.muted }}><FiZoomIn size={12} /></button>
+        <button title="Reset Zoom" onClick={() => setZoom(1)} style={{ ...hdrBtn, fontSize: 9, color: C.muted, width: 'auto', padding: '0 6px', background: SKU.btn, fontWeight: 700, boxShadow: SKU.shadow_raised }}>1:1</button>
 
         {onClose && (
           <>
-            <div style={{ width: 1, height: 14, background: '#333', margin: '0 2px' }} />
-            <button title="Close" onClick={onClose} style={hdrBtn}><FiX size={12} /></button>
+            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.05)', margin: '0 4px' }} />
+            <button title="Close" onClick={onClose} style={{ ...hdrBtn, color: '#666' }}><FiX size={13} /></button>
           </>
         )}
       </div>
@@ -860,55 +931,70 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
               const isSelected = selectedTrackId === track.id;
               const isLinked = isTrackSelectedElement(track);
               const isCustom = customAnimations.some(c => c.name === track.animation);
-              const triggerColor = (track.trigger || 'load') === 'load' ? '#4ec9b0' : track.trigger === 'hover' ? '#9cdcfe' : '#e5a45a';
+              const triggerColor = (track.trigger || 'load') === 'load' ? C.green : track.trigger === 'hover' ? C.blue : C.accent;
               return (
                 <div key={track.id}
-                  style={{ display: 'flex', height: TRACK_H, borderBottom: '1px solid rgba(255,255,255,0.03)', background: isSelected ? 'rgba(255,255,255,0.06)' : isLinked ? 'rgba(229,164,90,0.08)' : 'transparent', boxShadow: isLinked ? 'inset 2px 0 0 #e5a45a' : 'none', cursor: 'default' }}
+                  style={{ display: 'flex', height: TRACK_H, borderBottom: `1px solid ${C.border}`, background: isSelected ? 'rgba(255,255,255,0.04)' : isLinked ? 'rgba(229,164,90,0.06)' : 'transparent', transition: 'background 0.12s', cursor: 'default' }}
                   onClick={() => setSelectedTrackId(track.id)}
                   onContextMenu={e => trackContextMenu(e, track)}>
 
                   {/* Label */}
-                  <div style={{ width: labelWidth, flexShrink: 0, borderRight: '1px solid #2a2a2c', display: 'flex', alignItems: 'center', padding: '0 5px', gap: 4, overflow: 'hidden' }}>
-                    <div style={{ width: 6, height: 6, borderRadius: 1, background: track.color, flexShrink: 0 }} />
+                  <div style={{ width: labelWidth, flexShrink: 0, borderRight: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6, overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginRight: 2 }}>
+                      <button onClick={e => { e.stopPropagation(); moveTrack(track.id, 'up'); }} title="Move Up"
+                        style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', padding: 0, fontSize: 8, display: 'flex' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.accent)}
+                        onMouseLeave={e => (e.currentTarget.style.color = C.dim)}>▲</button>
+                      <button onClick={e => { e.stopPropagation(); moveTrack(track.id, 'down'); }} title="Move Down"
+                        style={{ background: 'none', border: 'none', color: C.dim, cursor: 'pointer', padding: 0, fontSize: 8, display: 'flex' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = C.accent)}
+                        onMouseLeave={e => (e.currentTarget.style.color = C.dim)}>▼</button>
+                    </div>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: track.color, flexShrink: 0, boxShadow: `0 0 8px ${track.color}44` }} />
                     <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.element}</div>
-                      <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                        {isCustom && <span style={{ fontSize: 8, color: '#9cdcfe' }}>★</span>}
-                        <span style={{ fontSize: 8, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.animation}</span>
-                        <span style={{ padding: '0 3px', borderRadius: 6, fontSize: 7, fontWeight: 700, background: `${triggerColor}18`, color: triggerColor, textTransform: 'uppercase', flexShrink: 0 }}>
-                          {(track.trigger || 'load').slice(0, 4)}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: isSelected ? C.accent : C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.element}</div>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {isCustom && <span style={{ fontSize: 9, color: C.blue, fontWeight: 900 }}>★</span>}
+                        <span style={{ fontSize: 8, color: C.dim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{track.animation}</span>
+                        <span style={{ padding: '0 4px', borderRadius: 4, fontSize: 7, fontWeight: 900, background: 'rgba(0,0,0,0.3)', color: triggerColor, textTransform: 'uppercase', border: `1px solid ${triggerColor}33` }}>
+                          {(track.trigger || 'load')}
                         </span>
                       </div>
                     </div>
+                    
+                    {selectedSelector && !isSelected && (
+                      <button onClick={e => { e.stopPropagation(); updateTrack(track.id, { element: selectedSelector }); showNotification(`Updated to ${selectedSelector}`); }}
+                        title={`Update to: ${selectedSelector}`}
+                        style={{ background: SKU.btn, border: 'none', color: C.green, cursor: 'pointer', padding: '2px 4px', borderRadius: 4, display: 'flex', boxShadow: SKU.shadow_raised }}>
+                        <FiPlus size={10} />
+                      </button>
+                    )}
+
                     <button title="Delete" onClick={e => { e.stopPropagation(); removeTrack(track.id); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', padding: 2, display: 'flex', borderRadius: 2, flexShrink: 0 }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#f88')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#333')}>
-                      <FiX size={10} />
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.dim, padding: 4, display: 'flex', borderRadius: 4, flexShrink: 0 }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#f44')}
+                      onMouseLeave={e => (e.currentTarget.style.color = C.dim)}>
+                      <FiX size={11} />
                     </button>
                   </div>
 
                   {/* Track bar area */}
-                  <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
-                    <div style={{ position: 'absolute', left: `${(currentTime / totalDuration) * 100}%`, top: 0, bottom: 0, width: 1, background: 'rgba(229,164,90,0.2)', zIndex: 3, pointerEvents: 'none' }} />
+                  <div style={{ flex: 1, position: 'relative', overflow: 'visible', background: 'rgba(0,0,0,0.1)' }}>
+                    {/* Grid lines */}
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(90deg, transparent, transparent 49.5%, rgba(255,255,255,0.02) 50%)', backgroundSize: `${(1 / totalDuration) * 100}% 100%` }} />
+                    
                     {/* Track block */}
                     <div
                       title={`${track.animation} — delay: ${track.delay}s, dur: ${track.duration}s, easing: ${track.easing}`}
-                      style={{ position: 'absolute', left: `${(track.delay / totalDuration) * 100}%`, width: `${(track.duration / totalDuration) * 100}%`, top: 4, bottom: 4, background: `linear-gradient(90deg, ${track.color}1a, ${track.color}44)`, border: `1px solid ${track.color}77`, borderRadius: 3, cursor: 'grab', zIndex: 2, display: 'flex', alignItems: 'center', overflow: 'hidden', minWidth: 6 }}
+                      style={{ position: 'absolute', left: `${(track.delay / totalDuration) * 100}%`, width: `${(track.duration / totalDuration) * 100}%`, top: 6, bottom: 6, background: isSelected ? track.color : `${track.color}22`, border: `1px solid ${track.color}66`, borderRadius: 4, cursor: 'grab', zIndex: 2, display: 'flex', alignItems: 'center', overflow: 'hidden', minWidth: 8, boxShadow: isSelected ? `0 0 12px ${track.color}44` : 'none', transition: 'background 0.2s, box-shadow 0.2s' }}
                       onMouseDown={e => startTrackDrag(e, track.id)}>
-                      <span style={{ fontSize: 8, color: track.color, padding: '0 4px', whiteSpace: 'nowrap', overflow: 'hidden', pointerEvents: 'none', fontWeight: 600 }}>{track.animation}</span>
-                      {/* Keyframe percentage markers */}
-                      {[25, 50, 75].map(pct => (
-                        <div key={pct} style={{ position: 'absolute', left: `${pct}%`, top: '15%', bottom: '15%', width: 1, background: `${track.color}40`, pointerEvents: 'none' }} />
-                      ))}
-                      {/* Start dot */}
-                      <div style={{ position: 'absolute', left: -1, top: '50%', transform: 'translate(-3px, -3px)', width: 6, height: 6, background: track.color, borderRadius: '50%', pointerEvents: 'none', zIndex: 4 }} />
+                      
+                      <span style={{ fontSize: 8, color: isSelected ? '#000' : track.color, padding: '0 8px', whiteSpace: 'nowrap', overflow: 'hidden', pointerEvents: 'none', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{track.animation}</span>
+                      
                       {/* Resize handle */}
                       <div title="Drag to resize duration"
-                        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 7, cursor: 'e-resize', background: `${track.color}22`, zIndex: 3, borderLeft: `1px dashed ${track.color}55` }}
+                        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 8, cursor: 'e-resize', background: 'rgba(0,0,0,0.1)', zIndex: 3, borderLeft: '1px solid rgba(0,0,0,0.1)' }}
                         onMouseDown={e => { e.stopPropagation(); startResizeDuration(e, track.id); }} />
-                      {/* End dot */}
-                      <div style={{ position: 'absolute', right: -1, top: '50%', transform: 'translate(3px, -3px)', width: 6, height: 6, background: track.color, borderRadius: '50%', pointerEvents: 'none', zIndex: 4 }} />
                     </div>
                   </div>
                 </div>
@@ -925,12 +1011,12 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
         {/* Track properties panel */}
         {selectedTrack && (
-          <div style={{ width: 188, flexShrink: 0, borderLeft: '1px solid #2e2e30', overflowY: 'auto', background: '#18181a', padding: '6px' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              Track
+          <div style={{ width: 200, flexShrink: 0, borderLeft: `1px solid ${C.border}`, overflowY: 'auto', background: C.surface, padding: '10px', boxShadow: '-4px 0 16px rgba(0,0,0,0.2)', zIndex: 5 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              Selected Track
               <button onClick={() => setShowCurveEditor(s => !s)}
-                style={{ background: showCurveEditor ? 'rgba(229,164,90,0.15)' : '#1e1e20', border: `1px solid ${showCurveEditor ? 'rgba(229,164,90,0.4)' : '#2e2e30'}`, borderRadius: 3, color: showCurveEditor ? '#e5a45a' : '#666', cursor: 'pointer', padding: '1px 5px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
-                <MiniCurve value={selectedTrack.easing} size={14} /> Curve
+                style={{ background: showCurveEditor ? SKU.abtn : SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6, color: showCurveEditor ? '#1a0d00' : C.muted, cursor: 'pointer', padding: '3px 8px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, boxShadow: SKU.shadow_raised }}>
+                <MiniCurve value={selectedTrack.easing} size={14} /> CURVE
               </button>
             </div>
 
@@ -953,21 +1039,21 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
               </select>
             </PropRow>
 
-            <PropRow label={`Dur ${selectedTrack.duration.toFixed(1)}s`}>
+            <PropRow label={`Duration: ${selectedTrack.duration.toFixed(1)}s`}>
               <input type="range" min="0.1" max="10" step="0.1" value={selectedTrack.duration}
                 onChange={e => updateTrack(selectedTrack.id, { duration: parseFloat(e.target.value) })}
-                style={{ flex: 1, accentColor: '#e5a45a' } as any} />
+                style={{ flex: 1, accentColor: C.accent } as any} />
             </PropRow>
 
-            <PropRow label={`Delay ${selectedTrack.delay.toFixed(1)}s`}>
+            <PropRow label={`Delay: ${selectedTrack.delay.toFixed(1)}s`}>
               <input type="range" min="0" max="8" step="0.1" value={selectedTrack.delay}
                 onChange={e => updateTrack(selectedTrack.id, { delay: parseFloat(e.target.value) })}
-                style={{ flex: 1, accentColor: '#e5a45a' } as any} />
+                style={{ flex: 1, accentColor: C.accent } as any} />
             </PropRow>
 
             <PropRow label="Easing">
-              <div style={{ display: 'flex', gap: 3, flex: 1, alignItems: 'center' }}>
-                <MiniCurve value={selectedTrack.easing} size={22} />
+              <div style={{ display: 'flex', gap: 4, flex: 1, alignItems: 'center' }}>
+                <MiniCurve value={selectedTrack.easing} size={24} />
                 <select value={selectedTrack.easing} onChange={e => updateTrack(selectedTrack.id, { easing: e.target.value })} style={{ ...trkSel, flex: 1 }}>
                   {EASING_NAMED.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
                   {!EASING_NAMED.some(e => e.value === selectedTrack.easing) && (
@@ -978,7 +1064,7 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             </PropRow>
 
             {showCurveEditor && (
-              <div style={{ marginTop: 4 }}>
+              <div style={{ marginTop: 8, marginBottom: 12 }}>
                 <CubicBezierEditor
                   value={selectedTrack.easing.startsWith('cubic-bezier') ? selectedTrack.easing : 'cubic-bezier(0.25,0.1,0.25,1)'}
                   onChange={v => updateTrack(selectedTrack.id, { easing: v })}
@@ -993,35 +1079,32 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
             </PropRow>
 
             <PropRow label="Trigger">
-              <div style={{ display: 'flex', gap: 2, flex: 1, background: '#111', border: '1px solid #2e2e30', borderRadius: 3, padding: 2, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 2, flex: 1, background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`, borderRadius: 6, padding: 2, flexWrap: 'wrap', boxShadow: SKU.shadow_sunken }}>
                 {(['load', 'hover', 'click', 'scroll'] as const).map(opt => {
                   const cur = selectedTrack.trigger || 'load';
                   const sel2 = cur === opt;
-                  const triggerColor = { load: '#4ec9b0', hover: '#9cdcfe', click: '#e5a45a', scroll: '#c586c0' }[opt];
+                  const triggerColor = { load: C.green, hover: C.blue, click: C.accent, scroll: '#c586c0' }[opt];
                   return (
                     <button key={opt} onClick={() => updateTrack(selectedTrack.id, { trigger: opt })}
-                      title={opt === 'scroll' ? 'Animate when element scrolls into view (Intersection Observer)' : undefined}
-                      style={{ flex: 1, padding: '2px 0', fontSize: 8, fontWeight: 600, background: sel2 ? `${triggerColor}28` : 'transparent', color: sel2 ? triggerColor : '#555', border: 'none', borderRadius: 2, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 28 }}>
-                      {opt === 'scroll' ? '↕' : opt}
+                      style={{ flex: '1 0 45%', padding: '4px 0', fontSize: 8, fontWeight: 800, border: 'none', borderRadius: 4, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em',
+                        background: sel2 ? SKU.abtn : 'transparent',
+                        color: sel2 ? '#1a0d00' : C.dim,
+                        boxShadow: sel2 ? SKU.shadow_raised : 'none' }}>
+                      {opt}
                     </button>
                   );
                 })}
               </div>
             </PropRow>
-            {(selectedTrack.trigger === 'scroll') && (
-              <div style={{ fontSize: 8, color: '#c586c0', background: 'rgba(197,134,192,0.08)', border: '1px solid rgba(197,134,192,0.2)', borderRadius: 3, padding: '3px 6px', marginBottom: 4 }}>
-                ↕ Plays when element enters viewport (Intersection Observer)
-              </div>
-            )}
 
-            <div style={{ marginTop: 6, display: 'flex', gap: 4 }}>
+            <div style={{ marginTop: 16, display: 'flex', gap: 6 }}>
               <button onClick={() => duplicateTrack(selectedTrack)}
-                style={{ flex: 1, padding: '4px', background: '#1e1e20', border: '1px solid #2e2e30', borderRadius: 3, color: '#888', fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                <FiCopy size={9} /> Copy
+                style={{ flex: 1, padding: '8px', background: SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6, color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: SKU.shadow_raised }}>
+                <FiCopy size={12} /> DUP
               </button>
-              <button onClick={() => { setSelectedTrackId(null); removeTrack(selectedTrack.id); }}
-                style={{ flex: 1, padding: '4px', background: 'rgba(248,136,136,0.08)', border: '1px solid rgba(248,136,136,0.25)', borderRadius: 3, color: '#f88', fontSize: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                <FiTrash2 size={9} /> Delete
+              <button onClick={() => removeTrack(selectedTrack.id)}
+                style={{ flex: 1, padding: '8px', background: SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6, color: '#f44747', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: SKU.shadow_raised }}>
+                <FiTrash2 size={12} /> DEL
               </button>
             </div>
           </div>
@@ -1035,9 +1118,9 @@ const TimelinePanel: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
 
 function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-      <span style={{ fontSize: 9, color: '#666', minWidth: 46, flexShrink: 0, lineHeight: 1.2 }}>{label}</span>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3 }}>{children}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+      <span style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{children}</div>
     </div>
   );
 }
@@ -1045,17 +1128,19 @@ function PropRow({ label, children }: { label: string; children: React.ReactNode
 const hdrBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: 24, height: 24, background: 'none', border: 'none',
-  cursor: 'pointer', color: '#555', borderRadius: 3, flexShrink: 0,
+  cursor: 'pointer', color: '#555', borderRadius: 4, flexShrink: 0,
 };
 
 const trkInp: React.CSSProperties = {
-  flex: 1, background: '#111', border: '1px solid #2e2e30', borderRadius: 3,
-  padding: '2px 5px', fontSize: 10, color: '#bbb', outline: 'none', fontFamily: 'monospace', minWidth: 0,
+  flex: 1, background: 'rgba(0,0,0,0.2)', border: `1px solid ${C.border}`, borderRadius: 6,
+  padding: '4px 8px', fontSize: 11, color: C.text, outline: 'none', fontFamily: 'var(--app-font-mono)', minWidth: 0,
+  boxShadow: SKU.shadow_sunken,
 };
 
 const trkSel: React.CSSProperties = {
-  flex: 1, background: '#111', border: '1px solid #2e2e30', borderRadius: 3,
-  padding: '2px 5px', fontSize: 10, color: '#bbb', outline: 'none', cursor: 'pointer', minWidth: 0,
+  flex: 1, background: SKU.btn, border: `1px solid ${C.border}`, borderRadius: 6,
+  padding: '4px 8px', fontSize: 11, color: C.text, outline: 'none', cursor: 'pointer', minWidth: 0,
+  boxShadow: SKU.shadow_raised,
 };
 
 export default TimelinePanel;

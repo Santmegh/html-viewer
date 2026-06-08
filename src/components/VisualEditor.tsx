@@ -14,6 +14,7 @@ import {
   performDomInsert,
   buildReparentUpdater,
 } from '../utils/domDragEngine';
+import { cn, BREAKPOINTS } from '../lib/utils';
 
 /* ─────────────── constants ─────────────── */
 const SKIP_TAGS = new Set(['html','head','body','script','style','meta','link','title','base','noscript']);
@@ -196,9 +197,9 @@ const HANDLE_CURSORS: Record<Handle, string> = {
 
 const ACCENT = '#e5a45a';
 const DEVICE_PRESETS = [
-  { id: 'desktop', label: 'Desktop', width: 1200 },
-  { id: 'tablet', label: 'Tablet', width: 768 },
-  { id: 'mobile', label: 'Mobile', width: 375 },
+  { id: 'desktop', label: 'Desktop', width: BREAKPOINTS.DESKTOP },
+  { id: 'tablet', label: 'Tablet', width: BREAKPOINTS.TABLET },
+  { id: 'mobile', label: 'Mobile', width: BREAKPOINTS.MOBILE },
   { id: 'custom', label: 'Fit', width: 0 },
 ] as const;
 const HW = 10; // handle width/height px

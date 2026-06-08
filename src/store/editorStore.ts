@@ -324,7 +324,10 @@ function serializeFiles(files: FileItem[]): FileItem[] {
     if (f.type === 'image' && f.url?.startsWith('data:')) {
       return { ...f, content: f.content || dataUrlToBase64(f.url), url: undefined };
     }
-    if (f.type === 'image' && f.url?.startsWith('blob:')) {
+    // Note: blob: URLs cannot be serialized. They should be converted to base64 
+    // before being added to the store if persistence is required.
+    // We remove them to avoid saving invalid/expired URLs.
+    if (f.url?.startsWith('blob:')) {
       return { ...f, url: undefined };
     }
     return f;
@@ -343,11 +346,7 @@ function loadFiles(): FileItem[] {
     if (!raw) return DEFAULT_FILES;
     const parsed = JSON.parse(raw) as FileItem[];
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_FILES;
-    if (isKnownStarterProject(parsed)) {
-      saveFiles(DEFAULT_FILES);
-      saveActiveFile(DEFAULT_FILES[0].id);
-      return DEFAULT_FILES;
-    }
+    // Removed automatic starter project overwrite to prevent data loss
     return parsed;
   } catch {
     return DEFAULT_FILES;
@@ -367,6 +366,15 @@ function loadFolders(): string[] {
 
 function saveActiveFile(id: string | null) {
   try { localStorage.setItem(ACTIVE_FILE_KEY, id ?? ''); } catch {}
+}
+
+let saveFilesTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedSaveFiles(files: FileItem[]) {
+  if (saveFilesTimer) clearTimeout(saveFilesTimer);
+  saveFilesTimer = setTimeout(() => {
+    saveFiles(files);
+    saveFilesTimer = null;
+  }, 1000);
 }
 
 function loadActiveFile(files: FileItem[]): string | null {
@@ -467,23 +475,34 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   removeFile: (id) => set((s) => {
     const next = s.files.filter(f => f.id !== id);
     const nextActive = s.activeFileId === id ? (next.find(f => f.id !== id)?.id ?? next[0]?.id ?? null) : s.activeFileId;
+
+    // Also close any preview tabs associated with this file
+    const nextTabs = s.previewTabs.filter(t => t.fileId !== id && t.imageFileId !== id);
+    let nextActiveTabId = s.activePreviewTabId;
+
+    if (nextTabs.length === 0) {
+      // Keep at least one tab if possible, or reset to default
+      nextTabs.push({ id: 'tab-1', title: 'Brand', favicon: '', active: true, previewType: 'page', fileId: 'index.html' });
+      nextActiveTabId = 'tab-1';
+    } else if (!nextTabs.find(t => t.id === s.activePreviewTabId)) {
+      nextActiveTabId = nextTabs[nextTabs.length - 1].id;
+    }
+
+    const updatedTabs = nextTabs.map(t => ({ ...t, active: t.id === nextActiveTabId }));
+
     saveFiles(next);
     saveActiveFile(nextActive);
-    return { files: next, activeFileId: nextActive };
+    return {
+      files: next,
+      activeFileId: nextActive,
+      previewTabs: updatedTabs,
+      activePreviewTabId: nextActiveTabId
+    };
   }),
   updateFileContent: (id, content) => set((s) => {
-    const file = s.files.find(f => f.id === id);
-    const isHtmlFile = file?.type === 'html';
-    const isBlank = content.trim().length < 30;
-    let timelinePatch: Partial<EditorStore> = {};
-    if (isHtmlFile && isBlank) {
-      const clearedTimeline: TimelineState = { ...s.timelineState, animationsApplied: false, tracks: [], playing: false, currentTime: 0 };
-      saveTimelineState(clearedTimeline);
-      timelinePatch = { timelineState: clearedTimeline, timelineAnimationStyle: '' };
-    }
     const next = s.files.map(f => f.id === id ? { ...f, content } : f);
     const autoSave = s.autoSave;
-    if (autoSave) saveFiles(next);
+    if (autoSave) debouncedSaveFiles(next);
     const unsavedFileIds = autoSave
       ? s.unsavedFileIds.filter(uid => uid !== id)
       : s.unsavedFileIds.includes(id) ? s.unsavedFileIds : [...s.unsavedFileIds, id];
@@ -491,7 +510,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       files: next,
       unsavedFileIds,
       ...(autoSave ? { previewRefreshKey: s.previewRefreshKey + 1 } : {}),
-      ...timelinePatch,
     };
   }),
   setActiveFile: (id) => {
@@ -581,20 +599,38 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   panels: { ...DEFAULT_PANEL_CONFIG, ..._initUserConfig.panels },
   setPanels: (panels) => set((s) => {
-    const nextPanels = { ...s.panels, ...panels };
-    patchUserConfigCookie({ panels: nextPanels });
-    return { panels: nextPanels };
+    const next = { ...s.panels, ...panels };
+    patchUserConfigCookie({ panels: next });
+    return { panels: next };
   }),
 
   consoleEntries: [],
-  addConsoleEntry: (entry) => set((s) => ({
-    consoleEntries: [...s.consoleEntries.slice(-300), { ...entry, id: Math.random().toString(36) }],
-  })),
+  addConsoleEntry: (entry) => set((s) => {
+    const next = [...s.consoleEntries, { ...entry, id: Math.random().toString(36).slice(2) }];
+    // Limit to 1000 entries to prevent memory leak
+    if (next.length > 1000) next.shift();
+    return { consoleEntries: next };
+  }),
   clearConsole: () => set({ consoleEntries: [] }),
 
   previewTabs: [{ id: 'tab-1', title: 'Brand', favicon: '', active: true, previewType: 'page', fileId: 'index.html' }],
   activePreviewTabId: 'tab-1',
   addPreviewTab: (opts) => {
+    const { previewTabs } = get();
+    // Check if a tab for this file already exists
+    const existing = previewTabs.find(t =>
+      (opts?.fileId && t.fileId === opts.fileId) ||
+      (opts?.imageFileId && t.imageFileId === opts.imageFileId)
+    );
+
+    if (existing) {
+      set((s) => ({
+        previewTabs: s.previewTabs.map(t => ({ ...t, active: t.id === existing.id })),
+        activePreviewTabId: existing.id,
+      }));
+      return;
+    }
+
     const id = `tab-${Date.now()}`;
     const newTab: PreviewTab = {
       id,
@@ -631,7 +667,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   notification: null,
   showNotification: (msg) => {
     set({ notification: msg });
-    setTimeout(() => set({ notification: null }), 2800);
+    // Use a unique ID to avoid clearing a newer notification
+    const currentMsg = msg;
+    setTimeout(() => {
+      set((s) => s.notification === currentMsg ? { notification: null } : {});
+    }, 2800);
   },
 
   previewRefreshKey: 0,

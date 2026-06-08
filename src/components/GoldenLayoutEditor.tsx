@@ -136,11 +136,12 @@ function isPanelType(value: unknown): value is PanelType {
 }
 
 function getPanelTypeFromItem(item: any): PanelType | undefined {
+  // Safer detection using standard Golden Layout v2 componentType first
   const candidates = [
     item?.componentType,
+    item?.container?.componentType,
     item?._myType,
     item?.container?._myType,
-    item?.container?.componentType,
   ];
   return candidates.find(isPanelType);
 }

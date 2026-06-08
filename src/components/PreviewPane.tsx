@@ -156,6 +156,11 @@ const PreviewPane: React.FC = () => {
   window.addEventListener('unhandledrejection', function(e) {
     window.parent.postMessage({ __htmlEditor: true, type: 'console', level: 'error', message: 'UnhandledPromiseRejection: ' + e.reason }, '*');
   });
+  window.addEventListener('message', function(e) {
+    if (!e.data || !e.data.__htmlEditor) return;
+    if (e.data.type === 'go-back') history.back();
+    if (e.data.type === 'go-forward') history.forward();
+  });
   function sendMeta() {
     var title = document.title || 'Untitled';
     var favicon = '';
@@ -185,6 +190,43 @@ const PreviewPane: React.FC = () => {
     return html;
   }, [activeTab?.fileId, files, timelineAnimationStyle]);
 
+  const goBack = useCallback(() => {
+    if (historyIdx > 0) {
+      const nextIdx = historyIdx - 1;
+      const url = history[nextIdx];
+      setHistoryIdx(nextIdx);
+      setCurrentUrl(url);
+      if (iframeRef.current?.contentWindow) {
+        // We can't easily force an iframe with srcdoc to navigate history,
+        // but we can try to re-apply the URL if it's a real URL, or just
+        // let eruda/internal state handle it if it's preview://
+        if (url.startsWith('preview://')) {
+          // If it's internal, we might just have to reload the srcdoc
+          // or send a message to the iframe to go back
+          iframeRef.current.contentWindow.postMessage({ __htmlEditor: true, type: 'go-back' }, '*');
+        } else {
+          iframeRef.current.contentWindow.location.href = url;
+        }
+      }
+    }
+  }, [history, historyIdx]);
+
+  const goForward = useCallback(() => {
+    if (historyIdx < history.length - 1) {
+      const nextIdx = historyIdx + 1;
+      const url = history[nextIdx];
+      setHistoryIdx(nextIdx);
+      setCurrentUrl(url);
+      if (iframeRef.current?.contentWindow) {
+        if (url.startsWith('preview://')) {
+          iframeRef.current.contentWindow.postMessage({ __htmlEditor: true, type: 'go-forward' }, '*');
+        } else {
+          iframeRef.current.contentWindow.location.href = url;
+        }
+      }
+    }
+  }, [history, historyIdx]);
+
   // Listen for postMessages from iframe
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -203,6 +245,7 @@ const PreviewPane: React.FC = () => {
         setCurrentUrl(d.url);
         setHistory(prev => {
           const idx = historyIdxRef.current;
+          // If we are navigating to a new URL, clear the forward history
           const base = idx >= 0 ? prev.slice(0, idx + 1) : prev;
           if (base[base.length - 1] === d.url) return base;
           const next = [...base, d.url];
@@ -264,7 +307,7 @@ const PreviewPane: React.FC = () => {
     if (previewRefreshKey === 0) return;
     if (activeTab?.previewType === 'image') return;
     scheduleRebuild(true);
-  }, [previewRefreshKey]);
+  }, [previewRefreshKey, activeTab?.previewType, scheduleRebuild]);
 
   // When switching to a page tab, reload
   useEffect(() => {
@@ -440,15 +483,15 @@ const PreviewPane: React.FC = () => {
           }}>
             <button
               className="panel-icon-btn" title="Back"
-              onClick={() => {}}
-              disabled
-              style={{ opacity: 0.3, cursor: 'not-allowed' }}
+              onClick={goBack}
+              disabled={historyIdx <= 0}
+              style={{ opacity: historyIdx <= 0 ? 0.3 : 1, cursor: historyIdx <= 0 ? 'not-allowed' : 'pointer' }}
             ><FiArrowLeft size={13} /></button>
             <button
               className="panel-icon-btn" title="Forward"
-              onClick={() => {}}
-              disabled
-              style={{ opacity: 0.3, cursor: 'not-allowed' }}
+              onClick={goForward}
+              disabled={historyIdx >= history.length - 1}
+              style={{ opacity: historyIdx >= history.length - 1 ? 0.3 : 1, cursor: historyIdx >= history.length - 1 ? 'not-allowed' : 'pointer' }}
             ><FiArrowRight size={13} /></button>
             <button
               className="panel-icon-btn" title="Refresh (Ctrl+R)"

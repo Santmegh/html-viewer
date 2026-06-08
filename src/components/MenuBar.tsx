@@ -57,7 +57,10 @@ const MenuBar: React.FC<MenuBarProps> = ({
   const htmlFile = getTargetHtmlFile(files, activeFileId);
 
   const formatHtml = (input: string) => {
+    // Basic logic for HTML formatting
+    const VOID_TAGS = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
     let indent = 0;
+    const tab = '  ';
     return input
       .replace(/>\s*</g, '><')
       .replace(/></g, '>\n<')
@@ -65,9 +68,26 @@ const MenuBar: React.FC<MenuBarProps> = ({
       .map(line => {
         const trimmed = line.trim();
         if (!trimmed) return '';
-        if (trimmed.startsWith('</')) indent = Math.max(0, indent - 1);
-        const out = `${'  '.repeat(indent)}${trimmed}`;
-        if (!trimmed.startsWith('</') && !trimmed.endsWith('/>') && !trimmed.includes('</')) indent++;
+        
+        // Decrease indent if the line starts with a closing tag
+        if (trimmed.startsWith('</')) {
+          indent = Math.max(0, indent - 1);
+        }
+        
+        const out = `${tab.repeat(indent)}${trimmed}`;
+        
+        const isOpening = trimmed.startsWith('<') && !trimmed.startsWith('</');
+        const isClosing = trimmed.includes('</') || trimmed.endsWith('/>');
+        
+        const tagNameMatch = trimmed.match(/^<([a-zA-Z0-9-]+)/);
+        const tagName = tagNameMatch ? tagNameMatch[1].toLowerCase() : '';
+        const isVoid = VOID_TAGS.includes(tagName);
+        
+        // Increase indent if it's an opening tag and not closed on the same line and not a void tag
+        if (isOpening && !isClosing && !isVoid) {
+          indent++;
+        }
+        
         return out;
       })
       .filter(Boolean)
@@ -76,9 +96,9 @@ const MenuBar: React.FC<MenuBarProps> = ({
 
   const minifyHtml = (input: string) =>
     input
-      .replace(/>\s+</g, '><')
-      .replace(/\n+/g, '')
-      .replace(/\s{2,}/g, ' ')
+      .replace(/\s*>\s*<\s*/g, '><') // remove spaces between tags
+      .replace(/\s{2,}/g, ' ')       // collapse multiple spaces to one
+      .replace(/\n/g, '')            // remove newlines
       .trim();
 
   const validateHtml = (input: string) => {
@@ -230,9 +250,13 @@ const MenuBar: React.FC<MenuBarProps> = ({
           label: 'Format HTML',
           action: () => {
             if (!htmlFile) { showNotification('No HTML file found'); close(); return; }
-            const formatted = formatHtml(htmlFile.content);
-            updateFileContent(htmlFile.id, formatted);
-            showNotification('HTML formatted');
+            try {
+              const formatted = formatHtml(htmlFile.content);
+              updateFileContent(htmlFile.id, formatted);
+              showNotification('HTML formatted');
+            } catch (e) {
+              showNotification('Formatting failed');
+            }
             close();
           },
         },

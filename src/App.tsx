@@ -27,6 +27,7 @@ import {
   FiCode, FiEye, FiLayout, FiDownload, FiRefreshCw, FiRotateCcw,
   FiFolder, FiSliders, FiClock, FiMonitor, FiBox, FiX, FiTerminal, FiZap,
 } from 'react-icons/fi';
+import { cn, BREAKPOINTS } from './lib/utils';
 
 /* ─── Non-intrusive Corner Ad Banner ─── */
 const EditorAdBanner: React.FC<{ mobile?: boolean }> = ({ mobile = false }) => {
@@ -43,7 +44,16 @@ const EditorAdBanner: React.FC<{ mobile?: boolean }> = ({ mobile = false }) => {
   const [pendingClose, setPendingClose] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleDismiss = () => {
+  const handleDismiss = (e: React.MouseEvent) => {
+    // If user clicks the X specifically, close without opening ad
+    const isX = (e.target as HTMLElement).closest('button');
+    if (isX) {
+      setDismissed(true);
+      try { localStorage.setItem('editor-ad-dismissed-at', String(Date.now())); } catch {}
+      setTimeout(() => setDismissed(false), AD_COOLDOWN_MS);
+      return;
+    }
+
     if (!pendingClose) {
       /* First click — navigate to ad, show "tap again to close" hint */
       setPendingClose(true);
@@ -146,9 +156,9 @@ function AiStatusButton() {
 
 /* ─── Mobile hook ─── */
 function useIsMobile() {
-  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  const [mobile, setMobile] = useState(() => window.innerWidth < BREAKPOINTS.MOBILE);
   useEffect(() => {
-    const fn = () => setMobile(window.innerWidth < 768);
+    const fn = () => setMobile(window.innerWidth < BREAKPOINTS.MOBILE);
     window.addEventListener('resize', fn);
     return () => window.removeEventListener('resize', fn);
   }, []);
@@ -263,7 +273,7 @@ function MobileApp() {
 
       {notification && (
         <div style={{
-          position: 'fixed', bottom: 70, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: 130, left: '50%', transform: 'translateX(-50%)',
           zIndex: 1400,
           background: 'linear-gradient(180deg,#3a3a42 0%,#2e2e36 100%)',
           border: '1px solid rgba(0,0,0,0.6)', borderTopColor: 'rgba(255,255,255,0.1)',
@@ -282,6 +292,21 @@ function MobileApp() {
 /* ─── App router ─── */
 export default function App() {
   const isMobile = useIsMobile();
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const state = useEditorStore.getState();
+      if (state.unsavedFileIds.length > 0) {
+        state.markAllSaved();
+        // Optional: Some browsers might need this to show a confirmation dialog
+        // e.preventDefault();
+        // e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   return (
     <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <Switch>
