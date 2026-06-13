@@ -394,6 +394,10 @@ function DesktopApp() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#1e1e22', color: '#d8d8d8', fontFamily: "'Inter', -apple-system, sans-serif", fontSize: 13, overflow: 'hidden' }}>
 
+      {/* SEO: visually hidden headings for Google site-name verification */}
+      <h1 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>HTML Editor – Free Online Visual &amp; Code Web Page Builder</h1>
+      <h2 style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>Free browser-based HTML editor with Monaco code editor, drag-and-drop visual designer, CSS animations timeline, and live preview.</h2>
+
       {/* ══ SKEUOMORPHIC MENU BAR ══ */}
       <div style={{
         display: 'flex', alignItems: 'center', height: 34, flexShrink: 0,

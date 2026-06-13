@@ -267,9 +267,9 @@ const Documentation: React.FC = () => {
           inLanguage: 'en',
           url: 'https://html-viewer-f2v.pages.dev/docs',
           datePublished: '2026-04-17',
-          dateModified: '2026-04-21',
+          dateModified: '2026-06-13',
           author: { '@type': 'Person', name: 'Jignesh D Maru' },
-          publisher: { '@type': 'Person', name: 'Jignesh D Maru' },
+          publisher: { '@type': 'Organization', '@id': 'https://html-viewer-f2v.pages.dev/#organization', name: 'HTML Editor' },
           image: 'https://html-viewer-f2v.pages.dev/og-image.jpg',
           proficiencyLevel: 'Beginner',
           articleSection: ['Getting Started', 'Panels', 'Menus', 'AI', 'Window System', 'Storage', 'Reference', 'FAQ'],
@@ -316,6 +316,8 @@ const Documentation: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080808] text-[#ccc] font-sans overflow-x-hidden">
+      {/* SEO: visually hidden H1 for Google site-name + rich results */}
+      <h1 className="sr-only">HTML Editor Pro Documentation — Complete Guide to the Free Online HTML, CSS &amp; JavaScript Editor</h1>
       {/* ── Sticky Header ── */}
       <header className="sticky top-0 z-[200] w-full border-b border-[#141414] bg-[#080808]/95 backdrop-blur-xl">
         <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">

@@ -58,8 +58,9 @@ const PrivacyPolicy: React.FC = () => {
           'description': 'Privacy Policy for HTML Editor Pro. Learn how we manage your data - all files are stored locally in your browser with no cloud sync.',
           'isPartOf': { '@id': 'https://html-viewer-f2v.pages.dev/#website' },
           'datePublished': '2026-04-21',
-          'dateModified': '2026-04-24',
+          'dateModified': '2026-06-13',
           'author': { '@type': 'Person', name: 'Jignesh D Maru' },
+          'publisher': { '@type': 'Organization', '@id': 'https://html-viewer-f2v.pages.dev/#organization', name: 'HTML Editor' },
           'breadcrumb': {
             '@type': 'BreadcrumbList',
             'itemListElement': [
@@ -98,7 +99,7 @@ const PrivacyPolicy: React.FC = () => {
               <FiShield size={40} />
             </div>
             <h1 className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none">Privacy Policy</h1>
-            <p className="text-xl text-[#666] font-medium leading-relaxed">Last Updated: April 21, 2026</p>
+            <p className="text-xl text-[#666] font-medium leading-relaxed">Last Updated: June 13, 2026</p>
           </section>
 
           <Card className="bg-[#111] border-[#222] p-8 md:p-12 space-y-12 rounded-[2rem]">

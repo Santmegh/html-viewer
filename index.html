@@ -189,14 +189,34 @@
           "sameAs": []
         },
         {
+          "@type": "Organization",
+          "@id": "https://html-viewer-f2v.pages.dev/#organization",
+          "name": "HTML Editor",
+          "url": "https://html-viewer-f2v.pages.dev/",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://html-viewer-f2v.pages.dev/#logo",
+            "url": "https://html-viewer-f2v.pages.dev/icon-512.png",
+            "width": 512,
+            "height": 512,
+            "caption": "HTML Editor"
+          },
+          "image": { "@id": "https://html-viewer-f2v.pages.dev/#logo" },
+          "founder": {
+            "@type": "Person",
+            "name": "Jignesh D Maru"
+          },
+          "sameAs": []
+        },
+        {
           "@type": "WebSite",
           "@id": "https://html-viewer-f2v.pages.dev/#website",
           "url": "https://html-viewer-f2v.pages.dev/",
           "name": "HTML Editor",
           "description": "Free browser-based HTML editor with Monaco code editor and live preview",
           "publisher": {
-            "@type": "Person",
-            "name": "Jignesh D Maru"
+            "@type": "Organization",
+            "@id": "https://html-viewer-f2v.pages.dev/#organization"
           },
           "potentialAction": {
             "@type": "SearchAction",
@@ -217,8 +237,13 @@
           "description": "Free browser-based HTML editor with Monaco code editor, drag-and-drop visual designer, CSS animations timeline, and live preview.",
           "inLanguage": "en",
           "datePublished": "2024-01-01",
-          "dateModified": "2026-04-25",
+          "dateModified": "2026-06-13",
           "author": { "@id": "https://html-viewer-f2v.pages.dev/#author" },
+          "publisher": { "@id": "https://html-viewer-f2v.pages.dev/#organization" },
+          "speakable": {
+            "@type": "SpeakableSpecification",
+            "cssSelector": ["title", "h1", "h2"]
+          },
           "breadcrumb": {
             "@type": "BreadcrumbList",
             "itemListElement": [

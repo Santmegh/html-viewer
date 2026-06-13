@@ -58,8 +58,9 @@ const TermsOfService: React.FC = () => {
           'description': 'Terms of Service for HTML Editor Pro. Agreement for using the free online HTML, CSS and JavaScript editor with visual designer and live preview.',
           'isPartOf': { '@id': 'https://html-viewer-f2v.pages.dev/#website' },
           'datePublished': '2026-04-21',
-          'dateModified': '2026-04-24',
+          'dateModified': '2026-06-13',
           'author': { '@type': 'Person', name: 'Jignesh D Maru' },
+          'publisher': { '@type': 'Organization', '@id': 'https://html-viewer-f2v.pages.dev/#organization', name: 'HTML Editor' },
           'breadcrumb': {
             '@type': 'BreadcrumbList',
             'itemListElement': [
