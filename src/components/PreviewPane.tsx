@@ -1,24 +1,30 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import {
   FiRefreshCw, FiMonitor, FiTablet, FiSmartphone,
   FiArrowLeft, FiArrowRight, FiPlus, FiX, FiImage, FiChevronDown, FiExternalLink,
+  FiBox, FiZap,
 } from 'react-icons/fi';
 import { VscFileCode, VscDebugAlt } from 'react-icons/vsc';
 import { buildProjectHtml, getTargetHtmlFile, imageSource, insertBeforeClosingTag } from '../utils/projectFiles';
+import {
+  detectFramework, startDevServer, syncFileToWebContainer,
+} from '../utils/webcontainer';
 
 const PreviewPane: React.FC = () => {
   const {
     files, previewRefreshKey, panels, setPanels,
-    addConsoleEntry,
+    addConsoleEntry, folders,
     previewTabs, activePreviewTabId, addPreviewTab, closePreviewTab,
     setActivePreviewTab, updatePreviewTab,
     timelineAnimationStyle,
     liveServer, autoSave,
     unsavedFileIds,
+    addPort,
   } = useEditorStore();
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const wcIframeRef = useRef<HTMLIFrameElement>(null);
   const [srcDoc, setSrcDoc] = useState<string>('');
   const rebuildTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -39,9 +45,70 @@ const PreviewPane: React.FC = () => {
   const viewportBtnRef = useRef<HTMLButtonElement>(null);
   const viewportMenuRef = useRef<HTMLDivElement>(null);
 
+  /* ── WebContainer state ── */
+  type PreviewMode = 'static' | 'webcontainer';
+  const [previewMode, setPreviewMode]       = useState<PreviewMode>('static');
+  const [wcUrl, setWcUrl]                   = useState<string | null>(null);
+  const [wcLoading, setWcLoading]           = useState(false);
+  const [wcLogs, setWcLogs]                 = useState<string[]>([]);
+  const [wcError, setWcError]               = useState<string | null>(null);
+  const wcStartedRef                        = useRef(false);
+
+  const pushWcLog = useCallback((msg: string) => {
+    setWcLogs(prev => [...prev.slice(-149), msg]);
+  }, []);
+
+  const framework = useMemo(() => detectFramework(files), [files]);
+  const hasPackageJson = files.some(f => f.name === 'package.json');
+
   const activeTab = previewTabs.find(t => t.id === activePreviewTabId);
   const livePreviewEnabled = liveServer && autoSave;
   const previewConsoleEnabled = autoSave || unsavedFileIds.length === 0;
+
+  /* ── Listen for PortManager "open in preview" event ── */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const url = (e as CustomEvent<{ url: string }>).detail?.url;
+      if (!url) return;
+      setWcUrl(url);
+      setPreviewMode('webcontainer');
+    };
+    window.addEventListener('wc-preview-url', handler);
+    return () => window.removeEventListener('wc-preview-url', handler);
+  }, []);
+
+  /* ── Start WebContainer dev server ── */
+  const startWC = useCallback(async () => {
+    if (wcStartedRef.current) return;
+    wcStartedRef.current = true;
+    setWcLoading(true);
+    setWcError(null);
+    setWcLogs([]);
+    try {
+      await startDevServer({
+        files,
+        folders,
+        onLog: (msg) => pushWcLog(msg),
+        onReady: (port, url) => {
+          setWcUrl(url);
+          setWcLoading(false);
+          addPort({ port, url, status: 'running', command: `npm run ${framework !== 'static' ? 'dev' : 'start'}` });
+          pushWcLog(`✅ Ready at ${url}`);
+        },
+      });
+    } catch (err) {
+      setWcError(String(err));
+      setWcLoading(false);
+      wcStartedRef.current = false;
+    }
+  }, [files, folders, addPort, framework, pushWcLog]);
+
+  /* ── Sync changed files into running WebContainer ── */
+  useEffect(() => {
+    if (previewMode !== 'webcontainer' || wcLoading) return;
+    const changed = files.filter(f => unsavedFileIds.includes(f.id));
+    changed.forEach(f => syncFileToWebContainer(f).catch(() => {}));
+  }, [files, previewMode, wcLoading, unsavedFileIds]);
 
   // Close new-tab menu when clicking outside
   useEffect(() => {
@@ -481,21 +548,61 @@ const PreviewPane: React.FC = () => {
             background: '#252526', borderBottom: '1px solid #3e3e3e',
             padding: '0 8px', gap: 6, flexShrink: 0,
           }}>
+            {/* Mode toggle: Static / WebContainer */}
+            <div style={{ display: 'flex', gap: 1, flexShrink: 0, background: '#1a1a1a', borderRadius: 5, padding: 2, border: '1px solid #333' }}>
+              <button
+                onClick={() => setPreviewMode('static')}
+                title="Static HTML preview"
+                style={{
+                  padding: '2px 7px', fontSize: 10, borderRadius: 3, cursor: 'pointer', border: 'none',
+                  background: previewMode === 'static' ? '#3a3a3a' : 'transparent',
+                  color: previewMode === 'static' ? '#e5a45a' : '#666',
+                  fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
+                }}
+              >
+                <FiBox size={9} /> Static
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewMode('webcontainer');
+                  if (!wcStartedRef.current && hasPackageJson) startWC();
+                }}
+                title={hasPackageJson ? 'WebContainer dev server' : 'Add package.json to enable'}
+                style={{
+                  padding: '2px 7px', fontSize: 10, borderRadius: 3, cursor: hasPackageJson ? 'pointer' : 'not-allowed', border: 'none',
+                  background: previewMode === 'webcontainer' ? '#3a3a3a' : 'transparent',
+                  color: previewMode === 'webcontainer' ? '#4ade80' : hasPackageJson ? '#666' : '#3a3a3a',
+                  fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
+                  opacity: hasPackageJson ? 1 : 0.4,
+                }}
+              >
+                <FiZap size={9} /> WC
+              </button>
+            </div>
+
+            {previewMode === 'static' && <>
+              <button
+                className="panel-icon-btn" title="Back"
+                onClick={goBack}
+                disabled={historyIdx <= 0}
+                style={{ opacity: historyIdx <= 0 ? 0.3 : 1, cursor: historyIdx <= 0 ? 'not-allowed' : 'pointer' }}
+              ><FiArrowLeft size={13} /></button>
+              <button
+                className="panel-icon-btn" title="Forward"
+                onClick={goForward}
+                disabled={historyIdx >= history.length - 1}
+                style={{ opacity: historyIdx >= history.length - 1 ? 0.3 : 1, cursor: historyIdx >= history.length - 1 ? 'not-allowed' : 'pointer' }}
+              ><FiArrowRight size={13} /></button>
+            </>}
             <button
-              className="panel-icon-btn" title="Back"
-              onClick={goBack}
-              disabled={historyIdx <= 0}
-              style={{ opacity: historyIdx <= 0 ? 0.3 : 1, cursor: historyIdx <= 0 ? 'not-allowed' : 'pointer' }}
-            ><FiArrowLeft size={13} /></button>
-            <button
-              className="panel-icon-btn" title="Forward"
-              onClick={goForward}
-              disabled={historyIdx >= history.length - 1}
-              style={{ opacity: historyIdx >= history.length - 1 ? 0.3 : 1, cursor: historyIdx >= history.length - 1 ? 'not-allowed' : 'pointer' }}
-            ><FiArrowRight size={13} /></button>
-            <button
-              className="panel-icon-btn" title="Refresh (Ctrl+R)"
-              onClick={() => useEditorStore.getState().refreshPreview()}
+              className="panel-icon-btn" title="Refresh"
+              onClick={() => {
+                if (previewMode === 'webcontainer') {
+                  wcIframeRef.current?.contentWindow?.location.reload();
+                } else {
+                  useEditorStore.getState().refreshPreview();
+                }
+              }}
               style={{ color: loading ? 'var(--editor-amber)' : undefined }}
             >
               <FiRefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
@@ -511,7 +618,7 @@ const PreviewPane: React.FC = () => {
                   flex: 1, background: 'transparent', border: 'none', outline: 'none',
                   fontSize: 12, color: '#bbb', fontFamily: 'var(--app-font-mono)',
                 }}
-                value={currentUrl}
+                value={previewMode === 'webcontainer' ? (wcUrl ?? 'webcontainer://…') : currentUrl}
                 readOnly
               />
             </div>
@@ -592,35 +699,140 @@ const PreviewPane: React.FC = () => {
           {/* Preview Area */}
           <div style={{
             flex: 1, minHeight: 0, overflow: viewport === 'desktop' ? 'hidden' : 'auto',
-            background: viewport === 'desktop' ? '#fff' : '#2a2a2a',
+            background: viewport === 'desktop' ? (previewMode === 'webcontainer' ? '#1e1e1e' : '#fff') : '#2a2a2a',
             display: 'flex',
             alignItems: viewport === 'mobile' ? 'center' : viewport === 'tablet' ? 'flex-start' : 'stretch',
             justifyContent: viewport === 'desktop' ? 'stretch' : 'center',
             padding: viewport === 'desktop' ? 0 : 24,
             position: 'relative',
           }}>
-            {loading && (
+            {loading && previewMode === 'static' && (
               <div style={{
                 position: 'absolute', top: 0, left: 0, right: 0, height: 2,
                 background: 'var(--editor-amber)', zIndex: 10,
                 animation: 'shimmer 1s ease infinite',
               }} />
             )}
-            <iframe
-              key={iframeKey}
-              ref={iframeRef}
-              title="Preview"
-              onLoad={handleIframeLoad}
-              srcDoc={srcDoc}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads"
-              style={{
-                ...viewportStyle,
-                border: 'none', flexShrink: 0, overflow: 'hidden',
-                transition: 'width 0.3s ease, height 0.3s ease, border-radius 0.3s ease',
-                opacity: fadeIn ? 1 : 0,
-                willChange: 'opacity',
-              }}
-            />
+
+            {/* ── WebContainer Preview ── */}
+            {previewMode === 'webcontainer' && (
+              wcUrl ? (
+                <iframe
+                  ref={wcIframeRef}
+                  src={wcUrl}
+                  title="WebContainer Preview"
+                  style={{
+                    ...viewportStyle,
+                    border: 'none', flexShrink: 0,
+                  }}
+                  allow="cross-origin-isolated"
+                />
+              ) : wcLoading ? (
+                /* Boot / install loading screen */
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'flex-start',
+                  background: '#0e0e10', padding: '24px 20px', overflow: 'auto',
+                  fontFamily: 'monospace', fontSize: 11,
+                }}>
+                  <div style={{ width: '100%', maxWidth: 500 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                      <span style={{ fontSize: 18 }}>⚡</span>
+                      <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 700 }}>WebContainer</span>
+                      <span style={{
+                        fontSize: 9, padding: '1px 6px', borderRadius: 8,
+                        background: 'rgba(250,204,21,0.15)', color: '#facc15',
+                        border: '1px solid rgba(250,204,21,0.3)',
+                      }}>
+                        BOOTING
+                      </span>
+                    </div>
+                    <div style={{
+                      background: '#141416', border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: 6, padding: '10px 12px', maxHeight: 320, overflow: 'auto',
+                    }}>
+                      {wcLogs.length === 0 ? (
+                        <div style={{ color: '#555', fontSize: 11 }}>Initializing…</div>
+                      ) : (
+                        wcLogs.map((l, i) => (
+                          <div key={i} style={{ color: l.startsWith('❌') ? '#f87171' : l.startsWith('✅') || l.startsWith('🌐') ? '#4ade80' : '#888', lineHeight: '18px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                            {l}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, color: '#555', fontSize: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#facc15', animation: 'pulse 1s ease infinite' }} />
+                      First boot may take 15–30s (downloads Node.js runtime)
+                    </div>
+                  </div>
+                </div>
+              ) : wcError ? (
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 12,
+                  background: '#0e0e10', padding: 24,
+                }}>
+                  <div style={{ fontSize: 28 }}>❌</div>
+                  <div style={{ fontSize: 13, color: '#f87171', fontWeight: 600 }}>WebContainer Error</div>
+                  <div style={{ fontSize: 11, color: '#666', maxWidth: 360, textAlign: 'center', lineHeight: 1.6 }}>
+                    {wcError}
+                  </div>
+                  <button
+                    onClick={() => { wcStartedRef.current = false; startWC(); }}
+                    style={{
+                      padding: '6px 16px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
+                      background: 'rgba(229,164,90,0.12)', border: '1px solid rgba(229,164,90,0.3)',
+                      color: '#e5a45a', fontFamily: 'inherit', fontWeight: 600,
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                /* No package.json — instructions */
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 10,
+                  background: '#0e0e10', padding: 24, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 28, opacity: 0.4 }}>⚡</div>
+                  <div style={{ fontSize: 13, color: '#aaa', fontWeight: 600 }}>WebContainer Preview</div>
+                  <div style={{ fontSize: 11, color: '#555', maxWidth: 300, lineHeight: 1.6 }}>
+                    Add a <code style={{ color: '#e5a45a', background: 'rgba(229,164,90,0.1)', padding: '0 4px', borderRadius: 3 }}>package.json</code> with a <code style={{ color: '#e5a45a', background: 'rgba(229,164,90,0.1)', padding: '0 4px', borderRadius: 3 }}>dev</code> script to run a real Node.js dev server here.
+                  </div>
+                  <button
+                    onClick={() => setPreviewMode('static')}
+                    style={{
+                      padding: '5px 14px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
+                      background: 'transparent', border: '1px solid #333',
+                      color: '#666', fontFamily: 'inherit',
+                    }}
+                  >
+                    Switch to Static Preview
+                  </button>
+                </div>
+              )
+            )}
+
+            {/* ── Static srcdoc Preview ── */}
+            {previewMode === 'static' && (
+              <iframe
+                key={iframeKey}
+                ref={iframeRef}
+                title="Preview"
+                onLoad={handleIframeLoad}
+                srcDoc={srcDoc}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-pointer-lock allow-downloads"
+                style={{
+                  ...viewportStyle,
+                  border: 'none', flexShrink: 0, overflow: 'hidden',
+                  transition: 'width 0.3s ease, height 0.3s ease, border-radius 0.3s ease',
+                  opacity: fadeIn ? 1 : 0,
+                  willChange: 'opacity',
+                }}
+              />
+            )}
           </div>
 
         </>

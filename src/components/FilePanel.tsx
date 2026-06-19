@@ -7,7 +7,8 @@ import {
   DraggingPosition,
 } from 'react-complex-tree';
 import 'react-complex-tree/lib/style-modern.css';
-import { useEditorStore, FileItem, getDefaultContentForLanguage, getLanguageFromFileName } from '../store/editorStore';
+import { useEditorStore, FileItem, FolderItem, getDefaultContentForLanguage, getLanguageFromFileName } from '../store/editorStore';
+import { downloadFile, downloadFolder } from '../utils/projectFiles';
 import { openFileInGLPanel } from '../lib/fileEditorBridge';
 import { FiPlus, FiUpload, FiX, FiCheck, FiTrash2, FiAlertTriangle, FiFolderPlus, FiChevronRight } from 'react-icons/fi';
 import { useContextMenu } from './ContextMenu';
@@ -57,15 +58,16 @@ const FolderIcon: React.FC<{ open?: boolean; color?: string }> = ({ open, color 
 /* ─── types ───────────────────────────────────────────────── */
 type ItemData =
   | { kind: 'file'; file: FileItem }
-  | { kind: 'folder'; name: string }
+  | { kind: 'folder'; folder: FolderItem }
   | { kind: 'root' };
 
 type DialogMode = 'create-file' | 'create-folder' | 'rename-file' | 'rename-folder' | 'delete-file' | 'delete-folder' | 'github-import';
 interface DialogState {
   mode: DialogMode;
   file?: FileItem;
-  folderName?: string;
+  folder?: FolderItem;
   targetFolder?: string;
+  parentFolderId?: string | null;
 }
 
 /* ─── theme tokens ───────────────────────────────────────── */
@@ -90,7 +92,7 @@ const T = {
 const FileDialog: React.FC<{
   dialog: DialogState;
   files: FileItem[];
-  folders: string[];
+  folders: FolderItem[];
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }> = ({ dialog, files, folders, onConfirm, onCancel }) => {
@@ -99,7 +101,7 @@ const FileDialog: React.FC<{
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setValue(dialog.mode === 'rename-file' ? (dialog.file?.name ?? '') : dialog.mode === 'rename-folder' ? (dialog.folderName ?? '') : '');
+    setValue(dialog.mode === 'rename-file' ? (dialog.file?.name ?? '') : dialog.mode === 'rename-folder' ? (dialog.folder?.name ?? '') : '');
     setError('');
     setTimeout(() => inputRef.current?.focus(), 60);
   }, [dialog]);
@@ -114,7 +116,9 @@ const FileDialog: React.FC<{
       if (!/^[\w\-. ]+$/.test(v.trim())) return 'Invalid characters';
     }
     if (dialog.mode === 'create-folder') {
-      if (folders.includes(v.trim())) return `"${v}" already exists`;
+      const parentId = dialog.parentFolderId ?? null;
+      const newId = parentId ? `${parentId}/${v.trim()}` : v.trim();
+      if (folders.some(f => f.id === newId)) return `"${v}" already exists`;
       if (!/^[\w\-. ]+$/.test(v.trim())) return 'Invalid characters';
     }
     if (dialog.mode === 'rename-file') {
@@ -122,7 +126,11 @@ const FileDialog: React.FC<{
       if (!/^[\w\-. ]+$/.test(v.trim())) return 'Invalid characters';
     }
     if (dialog.mode === 'rename-folder') {
-      if (v.trim() !== dialog.folderName && folders.includes(v.trim())) return `"${v}" already exists`;
+      const folder = dialog.folder;
+      if (folder) {
+        const newId = folder.parentId ? `${folder.parentId}/${v.trim()}` : v.trim();
+        if (v.trim() !== folder.name && folders.some(f => f.id === newId)) return `"${v}" already exists`;
+      }
       if (!/^[\w\-. ]+$/.test(v.trim())) return 'Invalid characters';
     }
     return '';
@@ -143,7 +151,7 @@ const FileDialog: React.FC<{
     'create-file': 'New File', 'create-folder': 'New Folder',
     'rename-file': 'Rename File', 'rename-folder': 'Rename Folder',
     'delete-file': `Delete "${dialog.file?.name}"?`,
-    'delete-folder': `Delete folder "${dialog.folderName}"?`,
+    'delete-folder': `Delete folder "${dialog.folder?.name}"?`,
     'github-import': 'Import from GitHub',
   };
 
@@ -201,7 +209,7 @@ const FileDialog: React.FC<{
 const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ onClose, hideHeader }) => {
   const {
     files, folders, activeFileId, setActiveFile, addFile, removeFile,
-    addFolder, removeFolder, renameFolder, moveFileToFolder,
+    addFolder, removeFolder, renameFolder, moveFileToFolder, moveFolder,
     showNotification, pendingFileDialog, setPendingFileDialog,
     unsavedFileIds, markFileSaved,
   } = useEditorStore();
@@ -224,37 +232,56 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
     setPendingFileDialog(null);
   }, [pendingFileDialog, files, setPendingFileDialog]);
 
-  const allFolderNames = useMemo(
-    () => Array.from(new Set([...folders, ...files.filter(f => f.folder).map(f => f.folder!)])),
-    [folders, files]
-  );
+  /* ── build merged folder list (includes implicit folders from files) ── */
+  const allFolders = useMemo(() => {
+    const explicitIds = new Set(folders.map(f => f.id));
+    const implicit: FolderItem[] = [];
+    files.filter(f => f.folder && !explicitIds.has(f.folder)).forEach(f => {
+      const parts = f.folder!.split('/');
+      parts.forEach((_, i) => {
+        const id = parts.slice(0, i + 1).join('/');
+        if (!explicitIds.has(id) && !implicit.some(x => x.id === id)) {
+          const name = parts[i];
+          const parentId = i > 0 ? parts.slice(0, i).join('/') : null;
+          implicit.push({ id, name, parentId });
+        }
+      });
+    });
+    return [...folders, ...implicit];
+  }, [folders, files]);
 
   /* ── build tree items map ─────────────────────────────── */
   const treeItems = useMemo<Record<TreeItemIndex, TreeItem<ItemData>>>(() => {
     const items: Record<TreeItemIndex, TreeItem<ItemData>> = {};
-    items['root'] = {
-      index: 'root', isFolder: true,
-      children: [
-        ...allFolderNames.map(f => `folder:${f}`),
-        ...files.filter(f => !f.folder).map(f => `file:${f.id}`),
-      ],
-      data: { kind: 'root' },
-    };
-    allFolderNames.forEach(name => {
-      items[`folder:${name}`] = {
-        index: `folder:${name}`, isFolder: true,
-        children: files.filter(f => f.folder === name).map(f => `file:${f.id}`),
-        data: { kind: 'folder', name },
+    items['root'] = { index: 'root', isFolder: true, children: [], data: { kind: 'root' } };
+
+    const sortedFolders = [...allFolders].sort((a, b) => a.id.split('/').length - b.id.split('/').length);
+    sortedFolders.forEach(folder => {
+      const parentKey = folder.parentId ? `folder:${folder.parentId}` : 'root';
+      items[`folder:${folder.id}`] = {
+        index: `folder:${folder.id}`, isFolder: true, children: [],
+        data: { kind: 'folder', folder },
       };
+      if (items[parentKey]) {
+        items[parentKey].children = [...(items[parentKey].children ?? []), `folder:${folder.id}`];
+      }
     });
+
     files.forEach(file => {
+      const parentKey = file.folder ? `folder:${file.folder}` : 'root';
       items[`file:${file.id}`] = {
         index: `file:${file.id}`, isFolder: false, children: [],
         data: { kind: 'file', file },
       };
+      if (items[parentKey]) {
+        items[parentKey].children = [...(items[parentKey].children ?? []), `file:${file.id}`];
+      } else {
+        items['root'].children = [...(items['root'].children ?? []), `file:${file.id}`];
+      }
     });
+
     return items;
-  }, [files, allFolderNames]);
+  }, [files, allFolders]);
 
   /* ── file import helpers ─────────────────────────────── */
   const importSingleFile = useCallback((file: File, targetFolder?: string) => {
@@ -281,8 +308,8 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
   }, [addFile, files]);
 
   const readDirectoryEntry = useCallback((entry: FileSystemDirectoryEntry, parentFolder?: string) => {
-    const folderName = parentFolder ? `${parentFolder}/${entry.name}` : entry.name;
-    addFolder(folderName);
+    const folderName = entry.name;
+    addFolder(folderName, parentFolder ?? null);
     const reader = entry.createReader();
     const readAll = (acc: FileSystemEntry[] = []) => {
       reader.readEntries(entries => {
@@ -342,8 +369,10 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
       showNotification(`Created ${value}`);
     }
     if (dialog.mode === 'create-folder') {
-      addFolder(value);
-      setExpandedItems(prev => [...prev.filter(i => i !== `folder:${value}`), `folder:${value}`]);
+      const parentId = dialog.parentFolderId ?? null;
+      addFolder(value, parentId);
+      const newId = parentId ? `${parentId}/${value}` : value;
+      setExpandedItems(prev => [...prev.filter(i => i !== `folder:${newId}`), `folder:${newId}`]);
       showNotification(`Created folder "${value}"`);
     }
     if (dialog.mode === 'rename-file' && dialog.file) {
@@ -354,41 +383,56 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
       setActiveFile(newId);
       showNotification(`Renamed to ${value}`);
     }
-    if (dialog.mode === 'rename-folder' && dialog.folderName) {
-      if (value !== dialog.folderName) { renameFolder(dialog.folderName, value); showNotification(`Renamed to "${value}"`); }
+    if (dialog.mode === 'rename-folder' && dialog.folder) {
+      if (value !== dialog.folder.name) { renameFolder(dialog.folder.id, value); showNotification(`Renamed to "${value}"`); }
     }
     if (dialog.mode === 'delete-file' && dialog.file) {
       removeFile(dialog.file.id);
       showNotification(`Deleted ${dialog.file.name}`);
     }
-    if (dialog.mode === 'delete-folder' && dialog.folderName) {
-      removeFolder(dialog.folderName);
-      showNotification(`Deleted folder "${dialog.folderName}"`);
+    if (dialog.mode === 'delete-folder' && dialog.folder) {
+      removeFolder(dialog.folder.id);
+      showNotification(`Deleted folder "${dialog.folder.name}"`);
     }
     if (dialog.mode === 'github-import') {
-      const match = value.trim().match(/github\.com\/([^/]+)\/([^/]+)/);
-      if (match) {
-        fetch(`https://api.github.com/repos/${match[1]}/${match[2]}/contents`)
-          .then(r => r.json())
-          .then(data => {
-            if (!Array.isArray(data)) return;
-            data.forEach(item => {
-              if (item.type !== 'file') return;
-              const ext = item.name.split('.').pop()?.toLowerCase();
-              const isText = ['html','css','js','ts','tsx','jsx','json','txt','md'].includes(ext||'');
-              const isImage = ['png','jpg','jpeg','gif','svg','webp','ico'].includes(ext||'');
-              if (isText) {
-                fetch(item.download_url).then(r => r.text()).then(content => {
-                  const type = ext === 'html' ? 'html' : ext === 'css' ? 'css' : (ext==='js'||ext==='ts'||ext==='tsx'||ext==='jsx') ? 'js' : 'other';
-                  const nm = makeUniqueName(item.name, undefined, useEditorStore.getState().files);
-                  addFile({ id: nm, name: nm, type, content });
-                });
-              } else if (isImage) {
-                const nm = makeUniqueName(item.name, undefined, useEditorStore.getState().files);
-                addFile({ id: nm, name: nm, type: 'image', content: '', url: item.download_url });
-              }
-            });
-            showNotification(`Imported from GitHub`);
+      const urlMatch = value.trim().match(/github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?/);
+      if (urlMatch) {
+        const [, owner, repo, branch = 'main'] = urlMatch;
+        showNotification('Fetching repository...');
+        const tryFetch = (br: string) =>
+          fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${br}?recursive=1`).then(r => {
+            if (!r.ok) throw new Error('not found');
+            return r.json();
+          });
+        (tryFetch(branch).catch(() => tryFetch('master')))
+          .then(async (data) => {
+            const tree: Array<{ path: string; type: string }> = data.tree ?? [];
+            const usedBranch = branch;
+            const dirs = tree.filter(i => i.type === 'tree');
+            for (const dir of dirs) {
+              const parts = dir.path.split('/');
+              const name = parts[parts.length - 1];
+              const parentId = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
+              addFolder(name, parentId);
+            }
+            const textExts = ['.html','.css','.js','.ts','.tsx','.jsx','.json','.md','.txt','.svg','.xml'];
+            const textFiles = tree.filter(i => i.type === 'blob' && textExts.some(e => i.path.endsWith(e)));
+            for (let i = 0; i < textFiles.length; i += 10) {
+              await Promise.all(textFiles.slice(i, i + 10).map(async (item) => {
+                const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${usedBranch}/${item.path}`;
+                const res = await fetch(rawUrl);
+                if (!res.ok) return;
+                const content = await res.text();
+                const parts = item.path.split('/');
+                const name = parts[parts.length - 1];
+                const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : undefined;
+                const ext = name.split('.').pop()?.toLowerCase();
+                const type = ext === 'html' ? 'html' : ext === 'css' ? 'css' : (ext==='js'||ext==='ts'||ext==='tsx'||ext==='jsx') ? 'js' : 'other';
+                const fileId = fileIdFor(name, folder);
+                addFile({ id: fileId, name, type, content, folder });
+              }));
+            }
+            showNotification(`Imported from GitHub (${textFiles.length} files)`);
           })
           .catch(() => showNotification('GitHub import failed'));
       }
@@ -411,9 +455,10 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
         addFile({ ...file, id: fileIdFor(newName, file.folder), name: newName });
         showNotification(`Duplicated as ${newName}`);
       }},
-      ...(allFolderNames.length > 0 ? [
+      { label: 'Download', icon: '⬇️', action: () => downloadFile(file) },
+      ...(allFolders.length > 0 ? [
         { separator: true, label: '' },
-        ...allFolderNames.filter(f => f !== file.folder).map(fn => ({ label: `Move to 📁 ${fn}`, action: () => moveFileToFolder(file.id, fn) })),
+        ...allFolders.filter(f => f.id !== file.folder).map(f => ({ label: `Move to 📁 ${f.name}`, action: () => moveFileToFolder(file.id, f.id) })),
         ...(file.folder ? [{ label: 'Move to Root', action: () => moveFileToFolder(file.id, undefined) }] : []),
       ] : []),
       { separator: true, label: '' },
@@ -423,15 +468,18 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
     ]);
   };
 
-  const handleFolderCtx = (e: React.MouseEvent, folderName: string) => {
+  const handleFolderCtx = (e: React.MouseEvent, folder: FolderItem) => {
     e.preventDefault(); e.stopPropagation();
     showCtx(e, [
-      { label: `📁 ${folderName}`, disabled: true },
+      { label: `📁 ${folder.name}`, disabled: true },
       { separator: true, label: '' },
-      { label: 'New File Inside', icon: '📄', action: () => setDialog({ mode: 'create-file', targetFolder: folderName }) },
-      { label: 'Rename Folder', icon: '✏️', action: () => setDialog({ mode: 'rename-folder', folderName }) },
+      { label: 'New File Inside', icon: '📄', action: () => setDialog({ mode: 'create-file', targetFolder: folder.id }) },
+      { label: 'New Folder Inside', icon: '📁', action: () => setDialog({ mode: 'create-folder', parentFolderId: folder.id }) },
+      { label: 'Download as ZIP', icon: '⬇️', action: () => downloadFolder(folder.id, folder.name, files, allFolders) },
       { separator: true, label: '' },
-      { label: 'Delete Folder', icon: '🗑️', danger: true, action: () => setDialog({ mode: 'delete-folder', folderName }) },
+      { label: 'Rename Folder', icon: '✏️', action: () => setDialog({ mode: 'rename-folder', folder }) },
+      { separator: true, label: '' },
+      { label: 'Delete Folder', icon: '🗑️', danger: true, action: () => setDialog({ mode: 'delete-folder', folder }) },
     ]);
   };
 
@@ -452,24 +500,23 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
 
   /* ── react-complex-tree drop handler ───────────────────── */
   const handleDrop = useCallback((droppedItems: TreeItem<ItemData>[], target: DraggingPosition) => {
+    let targetFolderId: string | null = null;
+    if (target.targetType === 'item') {
+      const t = treeItems[target.targetItem];
+      if (t?.data.kind === 'folder') targetFolderId = t.data.folder.id;
+      else if (t?.data.kind === 'file') targetFolderId = t.data.file.folder ?? null;
+    } else if (target.targetType === 'between-items') {
+      const parent = treeItems[target.parentItem];
+      if (parent?.data.kind === 'folder') targetFolderId = parent.data.folder.id;
+    }
     droppedItems.forEach(dropped => {
-      if (dropped.data.kind !== 'file') return;
-      const { file } = dropped.data;
-
-      if (target.targetType === 'root') {
-        moveFileToFolder(file.id, undefined);
-      } else if (target.targetType === 'item') {
-        const t = treeItems[target.targetItem];
-        if (t?.data.kind === 'folder') moveFileToFolder(file.id, t.data.name);
-        else if (t?.data.kind === 'file') moveFileToFolder(file.id, t.data.file.folder);
-        else if (t?.data.kind === 'root') moveFileToFolder(file.id, undefined);
-      } else if (target.targetType === 'between-items') {
-        const parent = treeItems[target.parentItem];
-        if (parent?.data.kind === 'folder') moveFileToFolder(file.id, parent.data.name);
-        else moveFileToFolder(file.id, undefined);
+      if (dropped.data.kind === 'file') {
+        moveFileToFolder(dropped.data.file.id, targetFolderId ?? undefined);
+      } else if (dropped.data.kind === 'folder') {
+        moveFolder(dropped.data.folder.id, targetFolderId);
       }
     });
-  }, [treeItems, moveFileToFolder]);
+  }, [treeItems, moveFileToFolder, moveFolder]);
 
   /* ── section header label ──────────────────────────────── */
   const SECTION_LABEL = 'EXPLORER';
@@ -550,7 +597,7 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
           items={treeItems as Record<TreeItemIndex, TreeItem<ItemData>>}
           getItemTitle={item => {
             if (item.data.kind === 'file') return item.data.file.name;
-            if (item.data.kind === 'folder') return item.data.name;
+            if (item.data.kind === 'folder') return item.data.folder.name;
             return 'root';
           }}
           viewState={{
@@ -564,7 +611,7 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
           canDropOnFolder
           canDropOnNonFolder={false}
           canReorderItems
-          canDrag={items => items.every(i => i.data.kind === 'file')}
+          canDrag={items => items.every(i => i.data.kind === 'file' || i.data.kind === 'folder')}
           onExpandItem={item => setExpandedItems(prev => [...prev, item.index])}
           onCollapseItem={item => setExpandedItems(prev => prev.filter(i => i !== item.index))}
           onSelectItems={items => setSelectedItems(items)}
@@ -585,7 +632,7 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
               removeFile(file.id); addFile({ ...file, id: newId, name });
               setActiveFile(newId); showNotification(`Renamed to ${name}`);
             } else if (item.data.kind === 'folder') {
-              renameFolder(item.data.name, name); showNotification(`Renamed to "${name}"`);
+              renameFolder(item.data.folder.id, name); showNotification(`Renamed to "${name}"`);
             }
           }}
           /* ── custom renderers ───────────────────────── */
@@ -602,8 +649,8 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
 
             const isFile = item.data.kind === 'file';
             const isFolder = item.data.kind === 'folder';
-            const file = isFile ? item.data.file : null;
-            const folderName = isFolder ? item.data.name : null;
+            const file = item.data.kind === 'file' ? item.data.file : null;
+            const folderObj = item.data.kind === 'folder' ? item.data.folder : null;
             const isActive = isFile && activeFileId === file?.id;
             const isUnsaved = isFile && file ? unsavedFileIds.includes(file.id) : false;
             const isDragOver = context.isDraggingOver;
@@ -631,12 +678,12 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
                   onContextMenu={e => {
                     e.preventDefault(); e.stopPropagation();
                     if (file) handleFileCtx(e, file);
-                    else if (folderName) handleFolderCtx(e, folderName);
+                    else if (folderObj) handleFolderCtx(e, folderObj);
                   }}
                   onDoubleClick={e => {
                     e.preventDefault();
                     if (file) setDialog({ mode: 'rename-file', file });
-                    else if (folderName) setDialog({ mode: 'rename-folder', folderName });
+                    else if (folderObj) setDialog({ mode: 'rename-folder', folder: folderObj });
                   }}
                   style={{
                     paddingLeft: 6 + depth * 14,
@@ -655,7 +702,7 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
 
                     {/* icon */}
                     {isFolder
-                      ? <FolderIcon open={context.isExpanded} color={isDragOver ? T.accent : isActive ? T.accent : '#c09040'} />
+                      ? <FolderIcon open={context.isExpanded} color={isDragOver ? T.accent : '#c09040'} />
                       : file
                       ? <FileIcon name={file.name} />
                       : null
@@ -671,15 +718,15 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
                   <div className="fp-row-actions" onClick={e => e.stopPropagation()}>
                     {isUnsaved && <span className="fp-unsaved" title="Unsaved changes" />}
 
-                    {isFolder && (
+                    {isFolder && folderObj && (
                       <>
                         <span style={{ fontSize: 10, color: '#444', marginRight: 2 }}>
-                          {files.filter(f => f.folder === folderName).length}
+                          {files.filter(f => f.folder === folderObj.id || f.folder?.startsWith(folderObj.id + '/')).length}
                         </span>
                         <button
                           className="fp-action-btn"
                           title="New file in folder"
-                          onClick={() => setDialog({ mode: 'create-file', targetFolder: folderName! })}>
+                          onClick={() => setDialog({ mode: 'create-file', targetFolder: folderObj.id })}>
                           <FiPlus size={11} />
                         </button>
                       </>
@@ -748,7 +795,7 @@ const FilePanel: React.FC<{ onClose?: () => void; hideHeader?: boolean }> = ({ o
         onChange={handleFolderSelect} />
 
       {dialog && (
-        <FileDialog dialog={dialog} files={files} folders={allFolderNames}
+        <FileDialog dialog={dialog} files={files} folders={allFolders}
           onConfirm={handleDialogConfirm} onCancel={() => setDialog(null)} />
       )}
       {ctxEl}

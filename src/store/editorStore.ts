@@ -12,6 +12,20 @@ export interface FileItem {
   folder?: string;
 }
 
+export interface FolderItem {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
+export interface PortInfo {
+  port: number;
+  pid?: number;
+  command?: string;
+  status: 'running' | 'stopped';
+  url: string;
+}
+
 export interface SelectedElement {
   tagName: string;
   id: string;
@@ -131,10 +145,16 @@ interface EditorStore {
   setActiveFile: (id: string) => void;
   moveFileToFolder: (fileId: string, folder: string | undefined) => void;
 
-  folders: string[];
-  addFolder: (name: string) => void;
-  removeFolder: (name: string) => void;
-  renameFolder: (oldName: string, newName: string) => void;
+  folders: FolderItem[];
+  addFolder: (name: string, parentId?: string | null) => void;
+  removeFolder: (folderId: string) => void;
+  renameFolder: (folderId: string, newName: string) => void;
+  moveFolder: (folderId: string, newParentId: string | null) => void;
+
+  ports: PortInfo[];
+  addPort: (port: PortInfo) => void;
+  removePort: (port: number) => void;
+  updatePort: (port: number, updates: Partial<PortInfo>) => void;
 
   mode: Mode;
   setMode: (mode: Mode) => void;
@@ -353,14 +373,19 @@ function loadFiles(): FileItem[] {
   }
 }
 
-function saveFolders(folders: string[]) {
+function saveFolders(folders: FolderItem[]) {
   try { localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders)); } catch {}
 }
 
-function loadFolders(): string[] {
+function loadFolders(): FolderItem[] {
   try {
     const raw = localStorage.getItem(FOLDERS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+      return (parsed as string[]).map((name: string) => ({ id: name, name, parentId: null }));
+    }
+    return parsed as FolderItem[];
   } catch { return []; }
 }
 
@@ -523,25 +548,93 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   }),
 
   folders: _initFolders,
-  addFolder: (name) => set((s) => {
-    const next = s.folders.includes(name) ? s.folders : [...s.folders, name];
+  addFolder: (name, parentId = null) => set((s) => {
+    const id = parentId ? `${parentId}/${name}` : name;
+    if (s.folders.some(f => f.id === id)) return s;
+    const newFolder: FolderItem = { id, name, parentId };
+    const next = [...s.folders, newFolder];
     saveFolders(next);
     return { folders: next };
   }),
-  removeFolder: (name) => set((s) => {
-    const nextFolders = s.folders.filter(f => f !== name);
-    const nextFiles = s.files.map(f => f.folder === name ? { ...f, folder: undefined } : f);
+  removeFolder: (folderId) => set((s) => {
+    const getAllSubfolderIds = (parentId: string): string[] => {
+      const children = s.folders.filter(f => f.parentId === parentId).map(f => f.id);
+      return children.flatMap(id => [id, ...getAllSubfolderIds(id)]);
+    };
+    const toDelete = new Set([folderId, ...getAllSubfolderIds(folderId)]);
+    const nextFolders = s.folders.filter(f => !toDelete.has(f.id));
+    const nextFiles = s.files.filter(
+      f => !toDelete.has(f.folder ?? '') && !Array.from(toDelete).some(d => f.folder?.startsWith(d + '/'))
+    );
     saveFolders(nextFolders);
     saveFiles(nextFiles);
     return { folders: nextFolders, files: nextFiles };
   }),
-  renameFolder: (oldName, newName) => set((s) => {
-    const nextFolders = s.folders.map(f => f === oldName ? newName : f);
-    const nextFiles = s.files.map(f => f.folder === oldName ? { ...f, folder: newName } : f);
+  renameFolder: (folderId, newName) => set((s) => {
+    const folder = s.folders.find(f => f.id === folderId);
+    if (!folder) return s;
+    const newId = folder.parentId ? `${folder.parentId}/${newName}` : newName;
+    const nextFolders = s.folders.map(f => {
+      if (f.id === folderId) return { ...f, id: newId, name: newName };
+      if (f.id.startsWith(folderId + '/')) {
+        const newChildId = newId + f.id.slice(folderId.length);
+        const newParentId = f.parentId === folderId ? newId :
+          (f.parentId?.startsWith(folderId + '/') ? newId + f.parentId.slice(folderId.length) : f.parentId);
+        return { ...f, id: newChildId, parentId: newParentId };
+      }
+      if (f.parentId === folderId) return { ...f, parentId: newId };
+      return f;
+    });
+    const nextFiles = s.files.map(f => {
+      if (!f.folder) return f;
+      if (f.folder === folderId) return { ...f, folder: newId };
+      if (f.folder.startsWith(folderId + '/')) return { ...f, folder: newId + f.folder.slice(folderId.length) };
+      return f;
+    });
     saveFolders(nextFolders);
     saveFiles(nextFiles);
     return { folders: nextFolders, files: nextFiles };
   }),
+  moveFolder: (folderId, newParentId) => set((s) => {
+    const folder = s.folders.find(f => f.id === folderId);
+    if (!folder) return s;
+    const isDescendant = (potentialParent: string, ofFolder: string): boolean => {
+      if (potentialParent === ofFolder) return true;
+      const parent = s.folders.find(f => f.id === potentialParent);
+      if (!parent?.parentId) return false;
+      return isDescendant(parent.parentId, ofFolder);
+    };
+    if (newParentId && isDescendant(newParentId, folderId)) {
+      console.warn('Cannot move folder into its own descendant');
+      return s;
+    }
+    const newId = newParentId ? `${newParentId}/${folder.name}` : folder.name;
+    const oldId = folderId;
+    const nextFolders = s.folders.map(f => {
+      if (f.id === oldId) return { ...f, id: newId, parentId: newParentId };
+      if (f.id.startsWith(oldId + '/')) {
+        return { ...f, id: newId + f.id.slice(oldId.length),
+          parentId: f.parentId === oldId ? newId : newId + (f.parentId?.slice(oldId.length) ?? '') };
+      }
+      return f;
+    });
+    const nextFiles = s.files.map(f => {
+      if (!f.folder) return f;
+      if (f.folder === oldId) return { ...f, folder: newId };
+      if (f.folder.startsWith(oldId + '/')) return { ...f, folder: newId + f.folder.slice(oldId.length) };
+      return f;
+    });
+    saveFolders(nextFolders);
+    saveFiles(nextFiles);
+    return { folders: nextFolders, files: nextFiles };
+  }),
+
+  ports: [],
+  addPort: (port) => set((s) => ({ ports: [...s.ports.filter(p => p.port !== port.port), port] })),
+  removePort: (port) => set((s) => ({ ports: s.ports.filter(p => p.port !== port) })),
+  updatePort: (port, updates) => set((s) => ({
+    ports: s.ports.map(p => p.port === port ? { ...p, ...updates } : p),
+  })),
 
   mode: _initUserConfig.mode ?? 'split',
   setMode: (mode) => {

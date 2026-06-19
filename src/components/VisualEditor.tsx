@@ -1337,20 +1337,47 @@ const VisualEditor: React.FC = () => {
     };
   }, [interaction, selectElement, syncToSource, refreshSnapshot, updateSource, injectAnimStyle, showCtx, handleVisualUndoRedoKey]);
 
-  /* ── Escape ── */
+  /* ── Escape + Arrow key nudging ── */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (handleVisualUndoRedoKey(e)) return;
+
       if (e.key === 'Escape' && !isEditingText) {
         selectedSelectorRef.current = null;
         setSelEl(null); setHovEl(null);
         setSelectedElement(null); setSelectedSelector(null);
         setShowQuickBar(false);
+        return;
       }
+
+      const el = selElRef.current;
+      if (!el || isEditingText) return;
+      const isArrow = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key);
+      if (!isArrow) return;
+
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const cs = el.ownerDocument?.defaultView?.getComputedStyle(el);
+
+      if (!el.style.position || el.style.position === 'static') {
+        el.style.position = 'relative';
+      }
+
+      const curLeft = parseFloat(el.style.left || '0') || 0;
+      const curTop  = parseFloat(el.style.top  || '0') || 0;
+
+      if (e.key === 'ArrowLeft')  el.style.left = (curLeft - step) + 'px';
+      if (e.key === 'ArrowRight') el.style.left = (curLeft + step) + 'px';
+      if (e.key === 'ArrowUp')    el.style.top  = (curTop  - step) + 'px';
+      if (e.key === 'ArrowDown')  el.style.top  = (curTop  + step) + 'px';
+
+      void cs; // keep lint happy
+      syncToSource(el);
+      setTick(t => t + 1);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [isEditingText, setSelectedElement, setSelectedSelector, handleVisualUndoRedoKey]);
+  }, [isEditingText, setSelectedElement, setSelectedSelector, handleVisualUndoRedoKey, syncToSource]);
 
   /* ── Hover overlay ── */
   const HR = ifrRect && hovRect && hovEl && hovEl !== selEl ? {

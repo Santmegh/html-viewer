@@ -1,4 +1,35 @@
-import type { FileItem } from '../store/editorStore';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+import type { FileItem, FolderItem } from '../store/editorStore';
+
+export const downloadFile = (file: FileItem): void => {
+  const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
+  saveAs(blob, file.name);
+};
+
+export const downloadFolder = async (
+  folderId: string,
+  folderName: string,
+  allFiles: FileItem[],
+  allFolders: FolderItem[]
+): Promise<void> => {
+  const zip = new JSZip();
+  const getAllSubfolderIds = (parentId: string): string[] => {
+    const children = allFolders.filter(f => f.parentId === parentId).map(f => f.id);
+    return [...children, ...children.flatMap(id => getAllSubfolderIds(id))];
+  };
+  const folderIds = new Set([folderId, ...getAllSubfolderIds(folderId)]);
+  allFiles
+    .filter(f => f.folder && folderIds.has(f.folder))
+    .forEach(f => {
+      const relativePath = f.folder === folderId
+        ? f.name
+        : f.folder!.slice(folderId.length + 1) + '/' + f.name;
+      zip.file(relativePath, f.content);
+    });
+  const blob = await zip.generateAsync({ type: 'blob' });
+  saveAs(blob, `${folderName}.zip`);
+};
 
 export function filePath(file: FileItem): string {
   return file.folder ? `${file.folder}/${file.name}` : file.name;
